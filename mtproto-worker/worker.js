@@ -1,0 +1,220 @@
+// Comb Search Bot - MTProto worker
+// Deploy this folder on its own (Railway / Render / Fly / VPS).
+// It holds the long-lived Telegram MTProto (GramJS) connection that the
+// serverless bot backend cannot hold itself.
+
+import express from "express";
+import dotenv from "dotenv";
+import { TelegramClient, Api } from "telegram";
+import { StringSession } from "telegram/sessions/index.js";
+
+dotenv.config();
+
+const {
+  TELEGRAM_API_ID,
+  TELEGRAM_API_HASH,
+  TELEGRAM_SESSION,
+  MTPROTO_WORKER_SECRET,
+  PORT = 8080,
+} = process.env;
+
+const missing = [
+  ["TELEGRAM_API_ID", TELEGRAM_API_ID],
+  ["TELEGRAM_API_HASH", TELEGRAM_API_HASH],
+  ["TELEGRAM_SESSION", TELEGRAM_SESSION],
+  ["MTPROTO_WORKER_SECRET", MTPROTO_WORKER_SECRET],
+]
+  .filter(([, value]) => !value)
+  .map(([name]) => name);
+
+if (missing.length > 0) {
+  console.error("Missing required environment variables: " + missing.join(", "));
+  process.exit(1);
+}
+
+const client = new TelegramClient(
+  new StringSession(TELEGRAM_SESSION),
+  parseInt(TELEGRAM_API_ID, 10),
+  TELEGRAM_API_HASH,
+  { connectionRetries: 5 },
+);
+
+let connecting = null;
+let connected = false;
+
+async function ensureConnected() {
+  if (connected) return;
+  if (!connecting) {
+    connecting = client
+      .connect()
+      .then(() => {
+        connected = true;
+        console.log("Connected to Telegram via MTProto");
+      })
+      .catch((error) => {
+        connecting = null;
+        throw error;
+      });
+  }
+  await connecting;
+}
+
+const messageFilters = {
+  chats: () => new Api.InputMessagesFilterEmpty(),
+  text: () => new Api.InputMessagesFilterEmpty(),
+  files: () => new Api.InputMessagesFilterDocument(),
+  videos: () => new Api.InputMessagesFilterVideo(),
+  audios: () => new Api.InputMessagesFilterMusic(),
+  links: () => new Api.InputMessagesFilterUrl(),
+};
+
+function toNumber(value) {
+  if (value === undefined || value === null) return null;
+  try {
+    return Number(value.toString());
+  } catch {
+    return null;
+  }
+}
+
+function detectType(message) {
+  const media = message.media;
+  if (!media) return "message";
+  const className = media.className;
+  if (className === "MessageMediaPhoto") return "photo";
+  if (className === "MessageMediaWebPage") return "link";
+  if (className === "MessageMediaDocument") {
+    const attributes = media.document?.attributes ?? [];
+    if (attributes.some((a) => a.className === "DocumentAttributeAudio")) return "audio";
+    if (attributes.some((a) => a.className === "DocumentAttributeVideo")) return "video";
+    return "file";
+  }
+  return "message";
+}
+
+async function searchEntities(query, category, limit) {
+  const result = await client.invoke(new Api.contacts.Search({ q: query, limit }));
+  const wantChannel = category === "channels";
+
+  return (result.chats ?? [])
+    .filter((chat) => {
+      if (chat.className === "Channel") {
+        const isBroadcast = Boolean(chat.broadcast);
+        return wantChannel ? isBroadcast : !isBroadcast;
+      }
+      if (chat.className === "Chat") return !wantChannel;
+      return false;
+    })
+    .map((chat) => ({
+      type: wantChannel ? "channel" : "group",
+      title: chat.title ?? "Untitled",
+      username: chat.username ?? null,
+      snippet: "",
+      link: chat.username ? `t.me/${chat.username}` : null,
+      date: chat.date ? new Date(chat.date * 1000).toISOString() : null,
+      members: chat.participantsCount ?? 0,
+      messageId: null,
+    }));
+}
+
+async function searchMessages(query, category, limit) {
+  const makeFilter = messageFilters[category] ?? messageFilters.chats;
+
+  const result = await client.invoke(
+    new Api.messages.SearchGlobal({
+      q: query,
+      filter: makeFilter(),
+      minDate: 0,
+      maxDate: 0,
+      offsetRate: 0,
+      offsetPeer: new Api.InputPeerEmpty(),
+      offsetId: 0,
+      limit,
+    }),
+  );
+
+  const peers = new Map();
+  for (const chat of result.chats ?? []) peers.set(toNumber(chat.id), chat);
+  for (const user of result.users ?? []) peers.set(toNumber(user.id), user);
+
+  const results = [];
+  for (const message of result.messages ?? []) {
+    const peerId =
+      toNumber(message.peerId?.channelId) ??
+      toNumber(message.peerId?.chatId) ??
+      toNumber(message.peerId?.userId);
+    const peer = peers.get(peerId);
+    const username = peer?.username ?? null;
+    const title =
+      peer?.title ??
+      [peer?.firstName, peer?.lastName].filter(Boolean).join(" ") ??
+      "Unknown";
+
+    results.push({
+      type: detectType(message),
+      title: title || "Unknown",
+      username,
+      snippet: message.message ?? "",
+      link: username ? `t.me/${username}/${message.id}` : null,
+      date: message.date ? new Date(message.date * 1000).toISOString() : null,
+      members: peer?.participantsCount ?? 0,
+      messageId: message.id ?? null,
+    });
+  }
+  return results;
+}
+
+async function searchTelegram(query, category, limit) {
+  await ensureConnected();
+  if (category === "channels" || category === "groups") {
+    return searchEntities(query, category, limit);
+  }
+  return searchMessages(query, category, limit);
+}
+
+const app = express();
+app.use(express.json({ limit: "64kb" }));
+
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    connected,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.post("/search", async (req, res) => {
+  if (req.headers.authorization !== `Bearer ${MTPROTO_WORKER_SECRET}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
+  const category = typeof req.body?.category === "string" ? req.body.category : "chats";
+  const requested = Number(req.body?.limit ?? 10);
+  const limit = Math.min(Math.max(Number.isFinite(requested) ? requested : 10, 1), 20);
+
+  if (query.length < 2) {
+    return res.status(400).json({ error: "Query must be at least 2 characters" });
+  }
+
+  try {
+    const results = await searchTelegram(query, category, limit);
+    res.json({
+      results,
+      query,
+      category,
+      count: results.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error?.errorMessage ?? error?.message ?? "Unknown error";
+    console.error(`Search failed [${category}] "${query}":`, message);
+    const flood = /FLOOD_WAIT/i.test(String(message));
+    res.status(flood ? 429 : 500).json({ error: message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`MTProto worker listening on port ${PORT}`);
+});
