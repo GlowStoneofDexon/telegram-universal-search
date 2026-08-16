@@ -14,13 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      search_cache: {
+        Row: {
+          category: string
+          channel_name: string | null
+          channel_username: string | null
+          content_type: string | null
+          created_at: string
+          expires_at: string
+          id: number
+          link: string | null
+          member_count: number
+          message_id: number | null
+          message_text: string | null
+          search_query: string
+        }
+        Insert: {
+          category: string
+          channel_name?: string | null
+          channel_username?: string | null
+          content_type?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: number
+          link?: string | null
+          member_count?: number
+          message_id?: number | null
+          message_text?: string | null
+          search_query: string
+        }
+        Update: {
+          category?: string
+          channel_name?: string | null
+          channel_username?: string | null
+          content_type?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: number
+          link?: string | null
+          member_count?: number
+          message_id?: number | null
+          message_text?: string | null
+          search_query?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_expired_cache: { Args: never; Returns: number }
+      get_cache_stats: {
+        Args: never
+        Returns: {
+          db_size_mb: number
+          expired_count: number
+          newest_record: string
+          oldest_record: string
+          total_records: number
+          unique_queries: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
