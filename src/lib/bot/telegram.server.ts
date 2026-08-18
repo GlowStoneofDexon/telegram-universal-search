@@ -10,9 +10,15 @@ function credentials() {
   return { lovableKey, telegramKey };
 }
 
+// ✅ UPDATED: Now reads TELEGRAM_WEBHOOK_SECRET directly instead of deriving from TELEGRAM_API_KEY
 export function deriveWebhookSecret(): string {
-  const { telegramKey } = credentials();
-  return createHash("sha256").update(`telegram-webhook:${telegramKey}`).digest("base64url");
+  const secret = process.env["TELEGRAM_WEBHOOK_SECRET"];
+  if (!secret) {
+    throw new Error(
+      "TELEGRAM_WEBHOOK_SECRET is not configured. Please set it in your environment variables."
+    );
+  }
+  return secret;
 }
 
 export function safeEqual(a: string, b: string): boolean {
