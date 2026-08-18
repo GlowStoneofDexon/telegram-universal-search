@@ -52,11 +52,20 @@ export function formatResults(
       lines.push(`   <i>${escapeHtml(trimmed.replace(/\s+/g, " "))}</i>`);
     }
 
-    if (result.link) {
-      lines.push(`   <a href="https://${escapeHtml(result.link)}">Open in Telegram</a>`);
+    const links: string[] = [];
+    if (result.username) {
+      const user = escapeHtml(result.username);
+      links.push(`<a href="https://t.me/${user}">Open chat</a>`);
+      if (result.messageId) {
+        links.push(`<a href="https://t.me/${user}/${result.messageId}">Open message</a>`);
+      }
+    } else if (result.link) {
+      links.push(`<a href="https://${escapeHtml(result.link)}">Open in Telegram</a>`);
     }
+    if (links.length) lines.push(`   ${links.join(" · ")}`);
     lines.push("");
   });
+
 
   return lines.join("\n").trim();
 }
