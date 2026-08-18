@@ -41,3 +41,13 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
     },
   },
 });
+export const Route = createFileRoute("/api/public/telegram/webhook")({
+  server: {
+    handlers: {
+      GET: async () => new Response("OK", { status: 200 }),
+      POST: async ({ request }) => {
+        // ... existing POST logic
+      }
+    }
+  }
+});
