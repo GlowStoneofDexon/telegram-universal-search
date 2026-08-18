@@ -3,6 +3,11 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/public/telegram/webhook")({
   server: {
     handlers: {
+      // ✅ ADD THIS: Telegram probes the URL with GET/HEAD
+      GET: async () => {
+        return new Response("Webhook endpoint is ready", { status: 200 });
+      },
+
       POST: async ({ request }) => {
         const { deriveWebhookSecret, safeEqual } = await import("@/lib/bot/telegram.server");
 
@@ -25,7 +30,6 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           return new Response("Unauthorized", { status: 401 });
         }
 
-
         let update: unknown;
         try {
           update = await request.json();
@@ -40,14 +44,4 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
       },
     },
   },
-});
-export const Route = createFileRoute("/api/public/telegram/webhook")({
-  server: {
-    handlers: {
-      GET: async () => new Response("OK", { status: 200 }),
-      POST: async ({ request }) => {
-        // ... existing POST logic
-      }
-    }
-  }
 });
