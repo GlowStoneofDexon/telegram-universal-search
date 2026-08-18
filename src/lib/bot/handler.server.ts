@@ -6,6 +6,7 @@ import {
   formatNoResults,
   formatResults,
 } from "./formatter.server";
+import { checkRateLimit, rateLimitMessage } from "./rate-limit.server";
 import { search } from "./search.server";
 import { answerCallback, editMessage, sendMessage } from "./telegram.server";
 
@@ -24,14 +25,17 @@ const COMMAND_CATEGORIES: Record<string, string> = {
 interface TelegramUpdate {
   message?: {
     chat?: { id?: number };
+    from?: { id?: number };
     text?: string;
   };
   callback_query?: {
     id: string;
     data?: string;
+    from?: { id?: number };
     message?: { chat?: { id?: number }; message_id?: number };
   };
 }
+
 
 async function renderSearch(query: string, category: string) {
   const outcome = await search(query, category);
