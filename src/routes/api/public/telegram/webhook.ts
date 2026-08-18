@@ -6,18 +6,25 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
       POST: async ({ request }) => {
         const { deriveWebhookSecret, safeEqual } = await import("@/lib/bot/telegram.server");
 
-        let expected: string;
+        // Accept an explicitly configured webhook secret (set via setWebhook by
+        // hand) and fall back to the connector-derived one.
+        const accepted: string[] = [];
+        const explicit = process.env["TELEGRAM_WEBHOOK_SECRET"];
+        if (explicit) accepted.push(explicit);
         try {
-          expected = deriveWebhookSecret();
+          accepted.push(deriveWebhookSecret());
         } catch (error) {
-          console.error("Webhook misconfigured:", error);
-          return new Response("Not configured", { status: 500 });
+          if (accepted.length === 0) {
+            console.error("Webhook misconfigured:", error);
+            return new Response("Not configured", { status: 500 });
+          }
         }
 
         const provided = request.headers.get("X-Telegram-Bot-Api-Secret-Token") ?? "";
-        if (!safeEqual(provided, expected)) {
+        if (!accepted.some((secret) => safeEqual(provided, secret))) {
           return new Response("Unauthorized", { status: 401 });
         }
+
 
         let update: unknown;
         try {

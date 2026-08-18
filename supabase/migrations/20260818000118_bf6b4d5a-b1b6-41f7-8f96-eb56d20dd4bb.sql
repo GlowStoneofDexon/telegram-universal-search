@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.check_bot_rate_limit(BIGINT, INTEGER, INTEGER) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.check_bot_rate_limit(BIGINT, INTEGER, INTEGER) TO service_role;

@@ -54,3 +54,21 @@ Response:
 ```
 
 Nothing is stored by the worker; every request is a pass-through.
+
+## Troubleshooting Railway
+
+**Deploy succeeds, then crashes with `code: 'ENOENT'`** — Railway is building the
+repository root instead of this folder, so `worker.js` does not exist where it
+starts. Fix it in the service settings:
+
+1. Settings → Source → **Root Directory** = `mtproto-worker`
+2. Settings → Deploy → **Start Command** = `node worker.js` (or leave blank; `railway.json` sets it)
+3. Redeploy.
+
+**Variables the worker needs on Railway** (and only these):
+`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_SESSION`, `MTPROTO_WORKER_SECRET`.
+Do **not** set `MTPROTO_WORKER_URL` or `TELEGRAM_BOT_TOKEN` on Railway — those
+belong in the Lovable app. `PORT` is injected by Railway automatically.
+
+`MTPROTO_WORKER_SECRET` must be byte-identical on Railway and in the Lovable app,
+otherwise every search returns 401.

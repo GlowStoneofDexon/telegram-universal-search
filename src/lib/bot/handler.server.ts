@@ -6,6 +6,7 @@ import {
   formatNoResults,
   formatResults,
 } from "./formatter.server";
+import { checkRateLimit, rateLimitMessage } from "./rate-limit.server";
 import { search } from "./search.server";
 import { answerCallback, editMessage, sendMessage } from "./telegram.server";
 
@@ -24,14 +25,17 @@ const COMMAND_CATEGORIES: Record<string, string> = {
 interface TelegramUpdate {
   message?: {
     chat?: { id?: number };
+    from?: { id?: number };
     text?: string;
   };
   callback_query?: {
     id: string;
     data?: string;
+    from?: { id?: number };
     message?: { chat?: { id?: number }; message_id?: number };
   };
 }
+
 
 async function renderSearch(query: string, category: string) {
   const outcome = await search(query, category);
@@ -43,7 +47,7 @@ async function renderSearch(query: string, category: string) {
     : formatNoResults(query, category);
 }
 
-async function handleMessage(chatId: number, rawText: string) {
+async function handleMessage(chatId: number, userId: number | undefined, rawText: string) {
   const text = rawText.trim();
 
   if (text.startsWith("/")) {
@@ -66,12 +70,24 @@ async function handleMessage(chatId: number, rawText: string) {
       return;
     }
 
+    const limit = await checkRateLimit(userId);
+    if (!limit.allowed) {
+      await sendMessage(chatId, rateLimitMessage(limit.retryAfter));
+      return;
+    }
+
     await sendMessage(chatId, await renderSearch(query, category), categoryKeyboard(query));
     return;
   }
 
   if (text.length < 2) {
     await sendMessage(chatId, "Please send a keyword with at least 2 characters.");
+    return;
+  }
+
+  const limit = await checkRateLimit(userId);
+  if (!limit.allowed) {
+    await sendMessage(chatId, rateLimitMessage(limit.retryAfter));
     return;
   }
 
@@ -96,6 +112,15 @@ async function handleCallback(update: NonNullable<TelegramUpdate["callback_query
     return;
   }
 
+  const limit = await checkRateLimit(update.from?.id);
+  if (!limit.allowed) {
+    await answerCallback(
+      update.id,
+      `Too many searches. Try again in ${Math.max(1, limit.retryAfter)}s.`,
+    );
+    return;
+  }
+
   await answerCallback(update.id, `Searching ${category}…`);
   await editMessage(chatId, messageId, await renderSearch(query, category), categoryKeyboard(query));
 }
@@ -110,8 +135,9 @@ export async function handleUpdate(update: TelegramUpdate): Promise<void> {
     const chatId = update.message?.chat?.id;
     const text = update.message?.text;
     if (chatId && typeof text === "string") {
-      await handleMessage(chatId, text);
+      await handleMessage(chatId, update.message?.from?.id, text);
     }
+
   } catch (error) {
     console.error("Update handling failed:", error);
   }
