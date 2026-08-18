@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_rate_limits: {
+        Row: {
+          request_count: number
+          telegram_user_id: number
+          updated_at: string
+          window_started_at: string
+        }
+        Insert: {
+          request_count?: number
+          telegram_user_id: number
+          updated_at?: string
+          window_started_at?: string
+        }
+        Update: {
+          request_count?: number
+          telegram_user_id?: number
+          updated_at?: string
+          window_started_at?: string
+        }
+        Relationships: []
+      }
       search_cache: {
         Row: {
           category: string
@@ -64,6 +85,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_bot_rate_limit: {
+        Args: {
+          _max_requests?: number
+          _user_id: number
+          _window_seconds?: number
+        }
+        Returns: {
+          allowed: boolean
+          retry_after: number
+        }[]
+      }
       delete_expired_cache: { Args: never; Returns: number }
       get_cache_stats: {
         Args: never
