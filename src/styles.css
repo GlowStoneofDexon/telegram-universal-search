@@ -132,6 +132,27 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+/* Comb Search Bot — dark honeycomb theme (site-wide) */
+:root {
+  --background: oklch(0.17 0.02 80);
+  --foreground: oklch(0.97 0.01 90);
+  --card: oklch(0.22 0.025 80);
+  --card-foreground: oklch(0.97 0.01 90);
+  --popover: oklch(0.22 0.025 80);
+  --popover-foreground: oklch(0.97 0.01 90);
+  --primary: oklch(0.82 0.16 82);
+  --primary-foreground: oklch(0.2 0.04 80);
+  --secondary: oklch(0.27 0.03 80);
+  --secondary-foreground: oklch(0.97 0.01 90);
+  --muted: oklch(0.27 0.03 80);
+  --muted-foreground: oklch(0.74 0.03 85);
+  --accent: oklch(0.3 0.05 80);
+  --accent-foreground: oklch(0.97 0.01 90);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.82 0.16 82);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

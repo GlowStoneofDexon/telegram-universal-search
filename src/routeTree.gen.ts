@@ -10,12 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BlogIndexRouteImport } from './routes/blog/index'
+import { Route as BlogHowToFindTelegramChannelsRouteImport } from './routes/blog/how-to-find-telegram-channels'
+import { Route as BlogTelegramChannelsRouteImport } from './routes/blog/telegram-channels'
+import { Route as BlogTelegramGroupsRouteImport } from './routes/blog/telegram-groups'
+import { Route as BlogTelegramSearchRouteImport } from './routes/blog/telegram-search'
 import { Route as ApiPublicTelegramCleanupRouteImport } from './routes/api/public/telegram/cleanup'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogHowToFindTelegramChannelsRoute =
+  BlogHowToFindTelegramChannelsRouteImport.update({
+    id: '/blog/how-to-find-telegram-channels',
+    path: '/blog/how-to-find-telegram-channels',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const BlogTelegramChannelsRoute = BlogTelegramChannelsRouteImport.update({
+  id: '/blog/telegram-channels',
+  path: '/blog/telegram-channels',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogTelegramGroupsRoute = BlogTelegramGroupsRouteImport.update({
+  id: '/blog/telegram-groups',
+  path: '/blog/telegram-groups',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogTelegramSearchRoute = BlogTelegramSearchRouteImport.update({
+  id: '/blog/telegram-search',
+  path: '/blog/telegram-search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicTelegramCleanupRoute =
@@ -33,35 +64,75 @@ const ApiPublicTelegramWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/blog/how-to-find-telegram-channels': typeof BlogHowToFindTelegramChannelsRoute
+  '/blog/telegram-channels': typeof BlogTelegramChannelsRoute
+  '/blog/telegram-groups': typeof BlogTelegramGroupsRoute
+  '/blog/telegram-search': typeof BlogTelegramSearchRoute
+  '/blog/': typeof BlogIndexRoute
   '/api/public/telegram/cleanup': typeof ApiPublicTelegramCleanupRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/blog/how-to-find-telegram-channels': typeof BlogHowToFindTelegramChannelsRoute
+  '/blog/telegram-channels': typeof BlogTelegramChannelsRoute
+  '/blog/telegram-groups': typeof BlogTelegramGroupsRoute
+  '/blog/telegram-search': typeof BlogTelegramSearchRoute
+  '/blog': typeof BlogIndexRoute
   '/api/public/telegram/cleanup': typeof ApiPublicTelegramCleanupRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/blog/how-to-find-telegram-channels': typeof BlogHowToFindTelegramChannelsRoute
+  '/blog/telegram-channels': typeof BlogTelegramChannelsRoute
+  '/blog/telegram-groups': typeof BlogTelegramGroupsRoute
+  '/blog/telegram-search': typeof BlogTelegramSearchRoute
+  '/blog/': typeof BlogIndexRoute
   '/api/public/telegram/cleanup': typeof ApiPublicTelegramCleanupRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/api/public/telegram/cleanup' | '/api/public/telegram/webhook'
+    | '/'
+    | '/blog/how-to-find-telegram-channels'
+    | '/blog/telegram-channels'
+    | '/blog/telegram-groups'
+    | '/blog/telegram-search'
+    | '/blog/'
+    | '/api/public/telegram/cleanup'
+    | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/telegram/cleanup' | '/api/public/telegram/webhook'
+  to:
+    | '/'
+    | '/blog/how-to-find-telegram-channels'
+    | '/blog/telegram-channels'
+    | '/blog/telegram-groups'
+    | '/blog/telegram-search'
+    | '/blog'
+    | '/api/public/telegram/cleanup'
+    | '/api/public/telegram/webhook'
   id:
     | '__root__'
     | '/'
+    | '/blog/how-to-find-telegram-channels'
+    | '/blog/telegram-channels'
+    | '/blog/telegram-groups'
+    | '/blog/telegram-search'
+    | '/blog/'
     | '/api/public/telegram/cleanup'
     | '/api/public/telegram/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BlogHowToFindTelegramChannelsRoute: typeof BlogHowToFindTelegramChannelsRoute
+  BlogTelegramChannelsRoute: typeof BlogTelegramChannelsRoute
+  BlogTelegramGroupsRoute: typeof BlogTelegramGroupsRoute
+  BlogTelegramSearchRoute: typeof BlogTelegramSearchRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicTelegramCleanupRoute: typeof ApiPublicTelegramCleanupRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
 }
@@ -73,6 +144,41 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/how-to-find-telegram-channels': {
+      id: '/blog/how-to-find-telegram-channels'
+      path: '/blog/how-to-find-telegram-channels'
+      fullPath: '/blog/how-to-find-telegram-channels'
+      preLoaderRoute: typeof BlogHowToFindTelegramChannelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/telegram-channels': {
+      id: '/blog/telegram-channels'
+      path: '/blog/telegram-channels'
+      fullPath: '/blog/telegram-channels'
+      preLoaderRoute: typeof BlogTelegramChannelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/telegram-groups': {
+      id: '/blog/telegram-groups'
+      path: '/blog/telegram-groups'
+      fullPath: '/blog/telegram-groups'
+      preLoaderRoute: typeof BlogTelegramGroupsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/telegram-search': {
+      id: '/blog/telegram-search'
+      path: '/blog/telegram-search'
+      fullPath: '/blog/telegram-search'
+      preLoaderRoute: typeof BlogTelegramSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/telegram/cleanup': {
@@ -94,6 +200,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BlogHowToFindTelegramChannelsRoute: BlogHowToFindTelegramChannelsRoute,
+  BlogTelegramChannelsRoute: BlogTelegramChannelsRoute,
+  BlogTelegramGroupsRoute: BlogTelegramGroupsRoute,
+  BlogTelegramSearchRoute: BlogTelegramSearchRoute,
+  BlogIndexRoute: BlogIndexRoute,
   ApiPublicTelegramCleanupRoute: ApiPublicTelegramCleanupRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
 }
