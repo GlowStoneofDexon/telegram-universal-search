@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as ApiPublicTelegramCleanupRouteImport } from './routes/api/public/telegram/cleanup'
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/blog/',
+  path: '/blog/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicTelegramCleanupRoute =
@@ -33,35 +39,47 @@ const ApiPublicTelegramWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/api/public/telegram/cleanup': typeof ApiPublicTelegramCleanupRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/blog': typeof BlogIndexRoute
   '/api/public/telegram/cleanup': typeof ApiPublicTelegramCleanupRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/api/public/telegram/cleanup': typeof ApiPublicTelegramCleanupRoute
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/api/public/telegram/cleanup' | '/api/public/telegram/webhook'
+    | '/'
+    | '/blog/'
+    | '/api/public/telegram/cleanup'
+    | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/telegram/cleanup' | '/api/public/telegram/webhook'
+  to:
+    | '/'
+    | '/blog'
+    | '/api/public/telegram/cleanup'
+    | '/api/public/telegram/webhook'
   id:
     | '__root__'
     | '/'
+    | '/blog/'
     | '/api/public/telegram/cleanup'
     | '/api/public/telegram/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BlogIndexRoute: typeof BlogIndexRoute
   ApiPublicTelegramCleanupRoute: typeof ApiPublicTelegramCleanupRoute
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
 }
@@ -73,6 +91,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/': {
+      id: '/blog/'
+      path: '/blog'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/telegram/cleanup': {
@@ -94,6 +119,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BlogIndexRoute: BlogIndexRoute,
   ApiPublicTelegramCleanupRoute: ApiPublicTelegramCleanupRoute,
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
 }
