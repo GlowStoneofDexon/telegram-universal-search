@@ -203,19 +203,24 @@ function Landing() {
         <section className="border-t border-border py-14">
           <h2 className="text-2xl font-semibold tracking-tight">Guides</h2>
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
-            {[
-              ["/blog/telegram-search", "How Telegram search really works"],
-              ["/blog/telegram-channels", "Finding the best Telegram channels"],
-              ["/blog/telegram-groups", "Finding active Telegram groups"],
-            ].map(([to, label]) => (
-              <Link
-                key={to}
-                to={to}
-                className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-accent"
-              >
-                <span className="font-medium">{label}</span>
-              </Link>
-            ))}
+            <Link
+              to="/blog/telegram-search"
+              className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-accent"
+            >
+              <span className="font-medium">How Telegram search really works</span>
+            </Link>
+            <Link
+              to="/blog/telegram-channels"
+              className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-accent"
+            >
+              <span className="font-medium">Finding the best Telegram channels</span>
+            </Link>
+            <Link
+              to="/blog/telegram-groups"
+              className="rounded-lg border border-border bg-card p-5 transition-colors hover:bg-accent"
+            >
+              <span className="font-medium">Finding active Telegram groups</span>
+            </Link>
           </div>
         </section>
       </main>
