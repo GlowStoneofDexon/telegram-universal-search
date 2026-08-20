@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as BlogHowToFindTelegramChannelsRouteImport } from './routes/blog/how-to-find-telegram-channels'
 import { Route as BlogTelegramChannelsRouteImport } from './routes/blog/telegram-channels'
@@ -21,6 +22,11 @@ import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/publi
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
@@ -64,6 +70,7 @@ const ApiPublicTelegramWebhookRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/blog/how-to-find-telegram-channels': typeof BlogHowToFindTelegramChannelsRoute
   '/blog/telegram-channels': typeof BlogTelegramChannelsRoute
   '/blog/telegram-groups': typeof BlogTelegramGroupsRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/blog/how-to-find-telegram-channels': typeof BlogHowToFindTelegramChannelsRoute
   '/blog/telegram-channels': typeof BlogTelegramChannelsRoute
   '/blog/telegram-groups': typeof BlogTelegramGroupsRoute
@@ -85,6 +93,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/blog/how-to-find-telegram-channels': typeof BlogHowToFindTelegramChannelsRoute
   '/blog/telegram-channels': typeof BlogTelegramChannelsRoute
   '/blog/telegram-groups': typeof BlogTelegramGroupsRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/sitemap.xml'
     | '/blog/how-to-find-telegram-channels'
     | '/blog/telegram-channels'
     | '/blog/telegram-groups'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/sitemap.xml'
     | '/blog/how-to-find-telegram-channels'
     | '/blog/telegram-channels'
     | '/blog/telegram-groups'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/sitemap.xml'
     | '/blog/how-to-find-telegram-channels'
     | '/blog/telegram-channels'
     | '/blog/telegram-groups'
@@ -128,6 +140,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   BlogHowToFindTelegramChannelsRoute: typeof BlogHowToFindTelegramChannelsRoute
   BlogTelegramChannelsRoute: typeof BlogTelegramChannelsRoute
   BlogTelegramGroupsRoute: typeof BlogTelegramGroupsRoute
@@ -144,6 +157,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/': {
@@ -200,6 +220,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   BlogHowToFindTelegramChannelsRoute: BlogHowToFindTelegramChannelsRoute,
   BlogTelegramChannelsRoute: BlogTelegramChannelsRoute,
   BlogTelegramGroupsRoute: BlogTelegramGroupsRoute,
