@@ -166,17 +166,21 @@ async function searchEntities(query, category, limit) {
 async function searchMessages(query, category, limit) {
   const makeFilter = messageFilters[category] ?? messageFilters.chats;
 
-  const result = await client.invoke(
-    new Api.messages.SearchGlobal({
-      q: query,
-      filter: makeFilter(),
-      minDate: 0,
-      maxDate: 0,
-      offsetRate: 0,
-      offsetPeer: new Api.InputPeerEmpty(),
-      offsetId: 0,
-      limit,
-    }),
+  const result = await withTimeout(
+    client.invoke(
+      new Api.messages.SearchGlobal({
+        q: query,
+        filter: makeFilter(),
+        minDate: 0,
+        maxDate: 0,
+        offsetRate: 0,
+        offsetPeer: new Api.InputPeerEmpty(),
+        offsetId: 0,
+        limit,
+      }),
+    ),
+    30000,
+    "Telegram message search",
   );
 
   const peers = new Map();
