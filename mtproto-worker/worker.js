@@ -32,26 +32,27 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-// Railway (and most PaaS) allow outbound 443 far more reliably than raw MTProto
-// TCP ports, so connect over websockets.
-const client = new TelegramClient(
-  new StringSession(TELEGRAM_SESSION),
-  parseInt(TELEGRAM_API_ID, 10),
-  TELEGRAM_API_HASH,
-  {
-    connectionRetries: 3,
+// Some hosts block raw MTProto TCP ports, others break websocket upgrades, so
+// try websockets first and fall back to plain TCP before giving up.
+const session = new StringSession(TELEGRAM_SESSION);
+
+function makeClient(useWSS) {
+  const c = new TelegramClient(session, parseInt(TELEGRAM_API_ID, 10), TELEGRAM_API_HASH, {
+    connectionRetries: 2,
     retryDelay: 1000,
     timeout: 15,
-    useWSS: true,
+    useWSS,
     autoReconnect: true,
-  },
-);
+  });
+  c.setLogLevel?.("warn");
+  return c;
+}
 
-client.setLogLevel?.("warn");
-
+let client = makeClient(true);
 let connecting = null;
 let connected = false;
 let lastConnectError = null;
+let transport = null;
 
 function withTimeout(promise, ms, label) {
   return new Promise((resolve, reject) => {
@@ -69,30 +70,47 @@ function withTimeout(promise, ms, label) {
   });
 }
 
+async function tryConnect(useWSS) {
+  const candidate = client && transport === (useWSS ? "wss" : "tcp") ? client : makeClient(useWSS);
+  await withTimeout(candidate.connect(), 20000, `Telegram connect (${useWSS ? "wss" : "tcp"})`);
+  const authorized = await withTimeout(
+    candidate.isUserAuthorized(),
+    15000,
+    "Telegram authorization check",
+  );
+  if (!authorized) {
+    throw new Error("TELEGRAM_SESSION is not authorized. Re-run `npm run login`.");
+  }
+  client = candidate;
+  transport = useWSS ? "wss" : "tcp";
+  connected = true;
+  lastConnectError = null;
+  console.log(`Connected to Telegram via MTProto (${transport})`);
+}
+
 async function ensureConnected() {
   if (connected && client.connected) return;
   connected = false;
   if (!connecting) {
-    connecting = withTimeout(client.connect(), 25000, "Telegram connect")
-      .then(async () => {
-        const authorized = await withTimeout(
-          client.isUserAuthorized(),
-          15000,
-          "Telegram authorization check",
-        );
-        if (!authorized) {
-          throw new Error("TELEGRAM_SESSION is not authorized. Re-run `npm run login`.");
+    connecting = (async () => {
+      try {
+        await tryConnect(true);
+      } catch (wssError) {
+        const wssMessage = wssError?.errorMessage ?? wssError?.message ?? String(wssError);
+        console.error("Websocket connect failed, falling back to TCP:", wssMessage);
+        try {
+          await tryConnect(false);
+        } catch (tcpError) {
+          const tcpMessage = tcpError?.errorMessage ?? tcpError?.message ?? String(tcpError);
+          lastConnectError = `wss: ${wssMessage} | tcp: ${tcpMessage}`;
+          console.error("Telegram connect failed:", lastConnectError);
+          throw tcpError;
         }
-        connected = true;
-        lastConnectError = null;
-        console.log("Connected to Telegram via MTProto");
-      })
-      .catch((error) => {
-        connecting = null;
-        lastConnectError = error?.errorMessage ?? error?.message ?? String(error);
-        console.error("Telegram connect failed:", lastConnectError);
-        throw error;
-      });
+      }
+    })().catch((error) => {
+      connecting = null;
+      throw error;
+    });
   }
   await connecting;
 }
@@ -100,6 +118,7 @@ async function ensureConnected() {
 // Warm the connection at boot so the first search is fast and startup problems
 // show up in the deploy logs immediately.
 ensureConnected().catch(() => {});
+
 
 const messageFilters = {
   chats: () => new Api.InputMessagesFilterEmpty(),
