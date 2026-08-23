@@ -32,32 +32,74 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+// Railway (and most PaaS) allow outbound 443 far more reliably than raw MTProto
+// TCP ports, so connect over websockets.
 const client = new TelegramClient(
   new StringSession(TELEGRAM_SESSION),
   parseInt(TELEGRAM_API_ID, 10),
   TELEGRAM_API_HASH,
-  { connectionRetries: 5 },
+  {
+    connectionRetries: 3,
+    retryDelay: 1000,
+    timeout: 15,
+    useWSS: true,
+    autoReconnect: true,
+  },
 );
+
+client.setLogLevel?.("warn");
 
 let connecting = null;
 let connected = false;
+let lastConnectError = null;
+
+function withTimeout(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 async function ensureConnected() {
-  if (connected) return;
+  if (connected && client.connected) return;
+  connected = false;
   if (!connecting) {
-    connecting = client
-      .connect()
-      .then(() => {
+    connecting = withTimeout(client.connect(), 25000, "Telegram connect")
+      .then(async () => {
+        const authorized = await withTimeout(
+          client.isUserAuthorized(),
+          15000,
+          "Telegram authorization check",
+        );
+        if (!authorized) {
+          throw new Error("TELEGRAM_SESSION is not authorized. Re-run `npm run login`.");
+        }
         connected = true;
+        lastConnectError = null;
         console.log("Connected to Telegram via MTProto");
       })
       .catch((error) => {
         connecting = null;
+        lastConnectError = error?.errorMessage ?? error?.message ?? String(error);
+        console.error("Telegram connect failed:", lastConnectError);
         throw error;
       });
   }
   await connecting;
 }
+
+// Warm the connection at boot so the first search is fast and startup problems
+// show up in the deploy logs immediately.
+ensureConnected().catch(() => {});
 
 const messageFilters = {
   chats: () => new Api.InputMessagesFilterEmpty(),
@@ -93,7 +135,11 @@ function detectType(message) {
 }
 
 async function searchEntities(query, category, limit) {
-  const result = await client.invoke(new Api.contacts.Search({ q: query, limit }));
+  const result = await withTimeout(
+    client.invoke(new Api.contacts.Search({ q: query, limit })),
+    30000,
+    "Telegram entity search",
+  );
   const wantChannel = category === "channels";
 
   return (result.chats ?? [])
@@ -120,17 +166,21 @@ async function searchEntities(query, category, limit) {
 async function searchMessages(query, category, limit) {
   const makeFilter = messageFilters[category] ?? messageFilters.chats;
 
-  const result = await client.invoke(
-    new Api.messages.SearchGlobal({
-      q: query,
-      filter: makeFilter(),
-      minDate: 0,
-      maxDate: 0,
-      offsetRate: 0,
-      offsetPeer: new Api.InputPeerEmpty(),
-      offsetId: 0,
-      limit,
-    }),
+  const result = await withTimeout(
+    client.invoke(
+      new Api.messages.SearchGlobal({
+        q: query,
+        filter: makeFilter(),
+        minDate: 0,
+        maxDate: 0,
+        offsetRate: 0,
+        offsetPeer: new Api.InputPeerEmpty(),
+        offsetId: 0,
+        limit,
+      }),
+    ),
+    30000,
+    "Telegram message search",
   );
 
   const peers = new Map();
@@ -179,6 +229,7 @@ app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     connected,
+    lastConnectError,
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
