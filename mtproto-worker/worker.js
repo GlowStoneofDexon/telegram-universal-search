@@ -135,7 +135,11 @@ function detectType(message) {
 }
 
 async function searchEntities(query, category, limit) {
-  const result = await client.invoke(new Api.contacts.Search({ q: query, limit }));
+  const result = await withTimeout(
+    client.invoke(new Api.contacts.Search({ q: query, limit })),
+    30000,
+    "Telegram entity search",
+  );
   const wantChannel = category === "channels";
 
   return (result.chats ?? [])
