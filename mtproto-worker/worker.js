@@ -229,6 +229,7 @@ app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     connected,
+    lastConnectError,
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
   });
