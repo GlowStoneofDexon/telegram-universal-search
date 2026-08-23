@@ -72,3 +72,17 @@ belong in the Lovable app. `PORT` is injected by Railway automatically.
 
 `MTPROTO_WORKER_SECRET` must be byte-identical on Railway and in the Lovable app,
 otherwise every search returns 401.
+
+**Health says `connected: false` and every search hangs / times out** — the
+`TELEGRAM_SESSION` string is not valid for the `TELEGRAM_API_ID` /
+`TELEGRAM_API_HASH` currently configured (Telegram accepts the TCP connection
+but never answers the first request). Regenerate it:
+
+```bash
+cd mtproto-worker
+npm install
+npm run login   # use the SAME api_id / api_hash that Railway has
+```
+
+Paste the new string into Railway's `TELEGRAM_SESSION` variable and redeploy.
+`/health` should then report `connected: true` (and `lastConnectError: null`).
