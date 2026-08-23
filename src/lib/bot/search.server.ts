@@ -97,14 +97,26 @@ async function callWorker(query: string, category: string): Promise<SearchResult
   if (!workerUrl) throw new Error("Search engine is not configured yet (MTPROTO_WORKER_URL).");
   if (!workerSecret) throw new Error("Search engine credentials are missing.");
 
-  const response = await fetch(`${workerUrl.replace(/\/$/, "")}/search`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${workerSecret}`,
-    },
-    body: JSON.stringify({ query, category, limit: 10 }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+
+  let response: Response;
+  try {
+    response = await fetch(`${workerUrl.replace(/\/$/, "")}/search`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${workerSecret}`,
+      },
+      body: JSON.stringify({ query, category, limit: 10 }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    console.error("Worker search request failed:", error);
+    throw new Error("The search engine took too long to answer. Try again in a moment.");
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     const body = await response.text();
