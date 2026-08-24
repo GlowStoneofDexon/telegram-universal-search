@@ -247,11 +247,13 @@ async function searchMessages(query, category, limit) {
 
 async function searchTelegram(query, category, limit) {
   await ensureConnected();
-  if (category === "channels" || category === "groups") {
+  // "chats" = every public channel/group matching the keyword (directory style).
+  if (category === "chats" || category === "channels" || category === "groups") {
     return searchEntities(query, category, limit);
   }
   return searchMessages(query, category, limit);
 }
+
 
 const app = express();
 app.use(express.json({ limit: "64kb" }));
