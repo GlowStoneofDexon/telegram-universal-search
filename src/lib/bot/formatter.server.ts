@@ -26,57 +26,69 @@ function formatMembers(count: number): string {
   return String(count);
 }
 
+const SPONSORED = [
+  "──────────────",
+  "<b>Sponsored</b>",
+  "🔥 Play Slots · ⚽ Bet Football",
+  "💰 100% crypto bonus",
+].join("\n");
+
+const PAGE_SIZE = 10;
+
 export function formatResults(
   results: SearchResult[],
   query: string,
   category: string,
   cached: boolean,
 ): string {
+  const page = results.slice(0, PAGE_SIZE);
+  const pages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
   const lines: string[] = [];
-  lines.push(`🔍 <b>${escapeHtml(query)}</b> — ${escapeHtml(categoryLabel(category))}`);
-  lines.push(`${results.length} result${results.length === 1 ? "" : "s"}${cached ? " · cached" : ""}`);
+
+  lines.push(
+    `🔍 <b>Results for “${escapeHtml(query)}”</b> · ${escapeHtml(categoryLabel(category))} · Page 1/${pages}${cached ? " · cached" : ""}`,
+  );
   lines.push("");
 
-  results.slice(0, 10).forEach((result, index) => {
+  page.forEach((result, index) => {
     const emoji = TYPE_EMOJI[result.type] ?? "📌";
-    lines.push(`<b>${index + 1}.</b> ${emoji} <b>${escapeHtml(result.title)}</b>`);
+    const title = escapeHtml(result.title);
+    const heading = result.username
+      ? `<a href="https://t.me/${escapeHtml(result.username)}">${title}</a>`
+      : title;
+    lines.push(`<b>${index + 1}.</b> ${emoji} <b>${heading}</b>`);
 
     const meta: string[] = [];
+    if (result.members > 0) meta.push(`👥 ${formatMembers(result.members)} members`);
     if (result.username) meta.push(`@${escapeHtml(result.username)}`);
-    if (result.members > 0) meta.push(`👥 ${formatMembers(result.members)}`);
     if (meta.length) lines.push(`   ${meta.join(" · ")}`);
 
     if (result.snippet) {
-      const trimmed =
-        result.snippet.length > 160 ? `${result.snippet.slice(0, 160)}…` : result.snippet;
-      lines.push(`   <i>${escapeHtml(trimmed.replace(/\s+/g, " "))}</i>`);
+      const clean = result.snippet.replace(/\s+/g, " ").trim();
+      const trimmed = clean.length > 140 ? `${clean.slice(0, 140)}…` : clean;
+      if (trimmed) lines.push(`   <i>${escapeHtml(trimmed)}</i>`);
     }
 
-    const links: string[] = [];
-    if (result.username) {
-      const user = escapeHtml(result.username);
-      links.push(`<a href="https://t.me/${user}">Open chat</a>`);
-      if (result.messageId) {
-        links.push(`<a href="https://t.me/${user}/${result.messageId}">Open message</a>`);
-      }
-    } else if (result.link) {
-      links.push(`<a href="https://${escapeHtml(result.link)}">Open in Telegram</a>`);
+    if (result.username && result.messageId) {
+      lines.push(
+        `   <a href="https://t.me/${escapeHtml(result.username)}/${result.messageId}">Open message</a>`,
+      );
     }
-    if (links.length) lines.push(`   ${links.join(" · ")}`);
     lines.push("");
   });
 
+  lines.push(SPONSORED);
 
   return lines.join("\n").trim();
 }
 
 export function formatNoResults(query: string, category: string): string {
   return [
-    `🔍 <b>${escapeHtml(query)}</b> — ${escapeHtml(categoryLabel(category))}`,
+    `🔍 <b>Results for “${escapeHtml(query)}”</b> · ${escapeHtml(categoryLabel(category))}`,
     "",
     "No public matches found.",
     "",
-    "Try another category below, a shorter keyword, or different spelling.",
+    "Tap another category below, or try a shorter keyword.",
   ].join("\n");
 }
 
@@ -108,15 +120,8 @@ export const WELCOME = [
   "",
   "Search public Telegram content in real time — channels, groups, chats, files, videos, audios and links.",
   "",
-  "Just send me any keyword to start.",
+  "<b>Just send me a keyword.</b> No commands needed — type <code>anime</code>, <code>crypto</code>, anything.",
   "",
-  "<b>Commands</b>",
-  "/search &lt;query&gt; — search chats",
-  "/channels &lt;query&gt;",
-  "/groups &lt;query&gt;",
-  "/files &lt;query&gt;",
-  "/videos &lt;query&gt;",
-  "/audios &lt;query&gt;",
-  "/links &lt;query&gt;",
-  "/help — show this message",
+  "Then tap a category button under the results to switch between Channels, Groups, Files, Videos, Audios and Links.",
 ].join("\n");
+
