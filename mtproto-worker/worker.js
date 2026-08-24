@@ -155,32 +155,44 @@ function detectType(message) {
 
 async function searchEntities(query, category, limit) {
   const result = await withTimeout(
-    client.invoke(new Api.contacts.Search({ q: query, limit })),
+    client.invoke(new Api.contacts.Search({ q: query, limit: Math.max(limit, 20) })),
     30000,
     "Telegram entity search",
   );
-  const wantChannel = category === "channels";
 
-  return (result.chats ?? [])
-    .filter((chat) => {
-      if (chat.className === "Channel") {
-        const isBroadcast = Boolean(chat.broadcast);
-        return wantChannel ? isBroadcast : !isBroadcast;
-      }
-      if (chat.className === "Chat") return !wantChannel;
-      return false;
-    })
-    .map((chat) => ({
-      type: wantChannel ? "channel" : "group",
+  const seen = new Set();
+  const items = [];
+
+  for (const chat of result.chats ?? []) {
+    let isBroadcast = null;
+    if (chat.className === "Channel") isBroadcast = Boolean(chat.broadcast);
+    else if (chat.className === "Chat") isBroadcast = false;
+    else continue;
+
+    if (category === "channels" && !isBroadcast) continue;
+    if (category === "groups" && isBroadcast) continue;
+
+    const username = chat.username ?? chat.usernames?.[0]?.username ?? null;
+    const key = username ?? `id:${chat.id?.toString?.() ?? Math.random()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    items.push({
+      type: isBroadcast ? "channel" : "group",
       title: chat.title ?? "Untitled",
-      username: chat.username ?? null,
+      username,
       snippet: "",
-      link: chat.username ? `t.me/${chat.username}` : null,
+      link: username ? `t.me/${username}` : null,
       date: chat.date ? new Date(chat.date * 1000).toISOString() : null,
       members: chat.participantsCount ?? 0,
       messageId: null,
-    }));
+    });
+  }
+
+  items.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
+  return items.slice(0, limit);
 }
+
 
 async function searchMessages(query, category, limit) {
   const makeFilter = messageFilters[category] ?? messageFilters.chats;
@@ -235,11 +247,13 @@ async function searchMessages(query, category, limit) {
 
 async function searchTelegram(query, category, limit) {
   await ensureConnected();
-  if (category === "channels" || category === "groups") {
+  // "chats" = every public channel/group matching the keyword (directory style).
+  if (category === "chats" || category === "channels" || category === "groups") {
     return searchEntities(query, category, limit);
   }
   return searchMessages(query, category, limit);
 }
+
 
 const app = express();
 app.use(express.json({ limit: "64kb" }));

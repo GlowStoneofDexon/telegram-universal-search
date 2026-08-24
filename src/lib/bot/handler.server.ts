@@ -62,13 +62,29 @@ async function handleMessage(chatId: number, userId: number | undefined, rawText
 
     const category = COMMAND_CATEGORIES[command];
     if (!category) {
-      await sendMessage(chatId, "Unknown command. Send /help to see what I can do.");
+      // Unknown command — treat the whole thing as a keyword instead of nagging.
+      const fallback = text.replace(/^\//, "").trim();
+      if (fallback.length < 2) {
+        await sendMessage(chatId, "Send me any keyword to search Telegram.");
+        return;
+      }
+      const fallbackLimit = await checkRateLimit(userId);
+      if (!fallbackLimit.allowed) {
+        await sendMessage(chatId, rateLimitMessage(fallbackLimit.retryAfter));
+        return;
+      }
+      await sendMessage(
+        chatId,
+        await renderSearch(fallback, "chats"),
+        categoryKeyboard(fallback),
+      );
       return;
     }
     if (query.length < 2) {
-      await sendMessage(chatId, `Usage: <code>${command} your keyword</code>`);
+      await sendMessage(chatId, "Just send me a keyword — no command needed. Example: <code>anime</code>");
       return;
     }
+
 
     const limit = await checkRateLimit(userId);
     if (!limit.allowed) {
