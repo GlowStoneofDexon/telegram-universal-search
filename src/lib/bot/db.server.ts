@@ -77,7 +77,12 @@ export async function setState(
   await supabaseAdmin
     .from("bot_admin_state")
     .upsert(
-      { telegram_id: telegramId, action, payload, updated_at: new Date().toISOString() },
+      {
+        telegram_id: telegramId,
+        action,
+        payload: payload as never,
+        updated_at: new Date().toISOString(),
+      },
       { onConflict: "telegram_id" },
     );
 }
