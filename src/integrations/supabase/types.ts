@@ -14,6 +14,147 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_admin_state: {
+        Row: {
+          action: string
+          payload: Json
+          telegram_id: number
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          payload?: Json
+          telegram_id: number
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          payload?: Json
+          telegram_id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bot_admins: {
+        Row: {
+          created_at: string
+          label: string | null
+          telegram_id: number
+        }
+        Insert: {
+          created_at?: string
+          label?: string | null
+          telegram_id: number
+        }
+        Update: {
+          created_at?: string
+          label?: string | null
+          telegram_id?: number
+        }
+        Relationships: []
+      }
+      bot_ads: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          is_active: boolean
+          title: string
+          url: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title?: string
+          url?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
+      bot_broadcasts: {
+        Row: {
+          created_at: string
+          failed_count: number
+          from_chat_id: number | null
+          id: string
+          message_id: number | null
+          sent_by: number | null
+          sent_count: number
+        }
+        Insert: {
+          created_at?: string
+          failed_count?: number
+          from_chat_id?: number | null
+          id?: string
+          message_id?: number | null
+          sent_by?: number | null
+          sent_count?: number
+        }
+        Update: {
+          created_at?: string
+          failed_count?: number
+          from_chat_id?: number | null
+          id?: string
+          message_id?: number | null
+          sent_by?: number | null
+          sent_count?: number
+        }
+        Relationships: []
+      }
+      bot_featured_searches: {
+        Row: {
+          created_at: string
+          id: string
+          position: number
+          query: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          position?: number
+          query: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          position?: number
+          query?: string
+        }
+        Relationships: []
+      }
+      bot_forced_channels: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          title: string | null
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title?: string | null
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
       bot_rate_limits: {
         Row: {
           request_count: number
@@ -32,6 +173,87 @@ export type Database = {
           telegram_user_id?: number
           updated_at?: string
           window_started_at?: string
+        }
+        Relationships: []
+      }
+      bot_reports: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          status: string
+          telegram_id: number | null
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          status?: string
+          telegram_id?: number | null
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          status?: string
+          telegram_id?: number | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      bot_search_log: {
+        Row: {
+          category: string
+          created_at: string
+          id: number
+          query: string
+          telegram_id: number | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: number
+          query: string
+          telegram_id?: number | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: number
+          query?: string
+          telegram_id?: number | null
+        }
+        Relationships: []
+      }
+      bot_users: {
+        Row: {
+          created_at: string
+          first_name: string | null
+          is_active: boolean
+          language: string
+          last_seen: string
+          telegram_id: number
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          first_name?: string | null
+          is_active?: boolean
+          language?: string
+          last_seen?: string
+          telegram_id: number
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          first_name?: string | null
+          is_active?: boolean
+          language?: string
+          last_seen?: string
+          telegram_id?: number
+          username?: string | null
         }
         Relationships: []
       }
@@ -85,6 +307,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bot_top_searches: {
+        Args: { _days?: number; _limit?: number }
+        Returns: {
+          hits: number
+          query: string
+        }[]
+      }
       check_bot_rate_limit: {
         Args: {
           _max_requests?: number
