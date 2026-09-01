@@ -93,3 +93,29 @@ export async function answerCallback(callbackId: string, text?: string): Promise
     ...(text ? { text } : {}),
   });
 }
+
+/** Like callTelegram but returns null instead of throwing. */
+export async function callTelegramSafe(
+  method: string,
+  payload: Record<string, unknown>,
+): Promise<unknown | null> {
+  try {
+    return await callTelegram(method, payload);
+  } catch {
+    return null;
+  }
+}
+
+/** Copies any message (text, photo, links, entities) to a chat. */
+export async function copyMessage(
+  chatId: number,
+  fromChatId: number,
+  messageId: number,
+): Promise<boolean> {
+  const res = await callTelegramSafe("copyMessage", {
+    chat_id: chatId,
+    from_chat_id: fromChatId,
+    message_id: messageId,
+  });
+  return res !== null;
+}

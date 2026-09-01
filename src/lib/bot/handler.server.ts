@@ -1,3 +1,10 @@
+import {
+  ADMIN_PANEL,
+  adminKeyboard,
+  checkForcedJoin,
+  handleAdminCallback,
+  handleAdminState,
+} from "./admin.server";
 import { isCategory } from "./categories";
 import {
   WELCOME,
@@ -5,7 +12,33 @@ import {
   formatError,
   formatNoResults,
   formatResults,
+  type AdBlock,
 } from "./formatter.server";
+import {
+  activeAd,
+  featuredSearches,
+  isAdmin,
+  logSearch,
+  setUserLanguage,
+  takeState,
+  touchUser,
+  addReport,
+  setState,
+} from "./db.server";
+import {
+  ABOUT_TEXT,
+  HELP_TEXT,
+  LANGUAGE_PROMPT,
+  MAIN_MENU,
+  MENU_HELP,
+  MENU_LANGUAGE,
+  MENU_PRIVACY,
+  MENU_PROMOTE,
+  PRIVACY_TEXT,
+  languageKeyboard,
+  languageLabel,
+  promoteMessage,
+} from "./menu.server";
 import { checkRateLimit, rateLimitMessage } from "./rate-limit.server";
 import { search } from "./search.server";
 import { answerCallback, editMessage, sendMessage } from "./telegram.server";
@@ -22,12 +55,28 @@ const COMMAND_CATEGORIES: Record<string, string> = {
   "/links": "links",
 };
 
+const RANDOM_SEEDS = [
+  "downloader bot",
+  "ai bot",
+  "movie bot",
+  "music bot",
+  "sticker bot",
+  "anime bot",
+  "crypto bot",
+  "study bot",
+  "tools bot",
+  "game bot",
+];
+
+interface TelegramMessage {
+  chat: { id: number };
+  message_id: number;
+  from?: { id?: number; username?: string; first_name?: string };
+  text?: string;
+}
+
 interface TelegramUpdate {
-  message?: {
-    chat?: { id?: number };
-    from?: { id?: number };
-    text?: string;
-  };
+  message?: Partial<TelegramMessage> & { chat?: { id?: number } };
   callback_query?: {
     id: string;
     data?: string;
@@ -36,63 +85,168 @@ interface TelegramUpdate {
   };
 }
 
+async function currentAd(): Promise<AdBlock | null> {
+  const ad = await activeAd();
+  return ad ? { title: ad.title, body: ad.body, url: ad.url } : null;
+}
 
-async function renderSearch(query: string, category: string) {
-  const outcome = await search(query, category);
-  if (outcome.error) {
-    return formatError(query, outcome.error);
-  }
+async function renderSearch(query: string, category: string, userId?: number) {
+  const [outcome, ad] = await Promise.all([search(query, category), currentAd()]);
+  void logSearch(userId, query, category);
+  if (outcome.error) return formatError(query, outcome.error);
   return outcome.results.length > 0
-    ? formatResults(outcome.results, query, category, outcome.cached)
+    ? formatResults(outcome.results, query, category, outcome.cached, ad)
     : formatNoResults(query, category);
 }
 
-async function handleMessage(chatId: number, userId: number | undefined, rawText: string) {
-  const text = rawText.trim();
+async function runSearch(chatId: number, userId: number | undefined, query: string, category: string) {
+  const limit = await checkRateLimit(userId);
+  if (!limit.allowed) {
+    await sendMessage(chatId, rateLimitMessage(limit.retryAfter));
+    return;
+  }
+  await sendMessage(chatId, await renderSearch(query, category, userId), categoryKeyboard(query));
+}
+
+async function sendStart(chatId: number) {
+  const featured = await featuredSearches();
+  const extra =
+    featured.length > 0
+      ? `\n\n🔝 <b>Trending searches</b>\n${featured.map((q, i) => `${i + 1}. <code>${q}</code>`).join("\n")}`
+      : "";
+  await sendMessage(chatId, `${WELCOME}${extra}`, MAIN_MENU);
+}
+
+async function handleCommand(message: TelegramMessage, command: string, query: string) {
+  const chatId = message.chat.id;
+  const userId = message.from?.id;
+
+  switch (command) {
+    case "/start":
+      await sendStart(chatId);
+      return true;
+    case "/help":
+      await sendMessage(chatId, HELP_TEXT, MAIN_MENU);
+      return true;
+    case "/about":
+      await sendMessage(chatId, ABOUT_TEXT, MAIN_MENU);
+      return true;
+    case "/privacy":
+      await sendMessage(chatId, PRIVACY_TEXT, MAIN_MENU);
+      return true;
+    case "/menu":
+      await sendMessage(chatId, "Choose an option:", MAIN_MENU);
+      return true;
+    case "/language":
+      await sendMessage(chatId, LANGUAGE_PROMPT, languageKeyboard());
+      return true;
+    case "/report": {
+      if (query.length >= 3) {
+        await addReport(userId, message.from?.username ?? null, query);
+        await sendMessage(chatId, "✅ Thanks — your report was sent to the admins.");
+        return true;
+      }
+      if (userId) await setState(userId, "report");
+      await sendMessage(chatId, "⚠️ Describe the problem in one message and I'll pass it to the admins.\n\n/cancel to abort.");
+      return true;
+    }
+    case "/rand": {
+      const seed = RANDOM_SEEDS[Math.floor(Math.random() * RANDOM_SEEDS.length)]!;
+      await sendMessage(chatId, "🎲 Picking 10 random bots…");
+      await runSearch(chatId, userId, seed, "chats");
+      return true;
+    }
+    case "/admin": {
+      if (!(await isAdmin(userId))) {
+        await sendMessage(chatId, "🔐 This command is restricted to admins.");
+        return true;
+      }
+      await sendMessage(chatId, ADMIN_PANEL, adminKeyboard());
+      return true;
+    }
+    case "/cancel":
+      await sendMessage(chatId, "Nothing to cancel.");
+      return true;
+    default:
+      return false;
+  }
+}
+
+async function handleMenuLabel(chatId: number, text: string): Promise<boolean> {
+  switch (text) {
+    case MENU_HELP:
+      await sendMessage(chatId, HELP_TEXT, MAIN_MENU);
+      return true;
+    case MENU_PRIVACY:
+      await sendMessage(chatId, PRIVACY_TEXT, MAIN_MENU);
+      return true;
+    case MENU_LANGUAGE:
+      await sendMessage(chatId, LANGUAGE_PROMPT, languageKeyboard());
+      return true;
+    case MENU_PROMOTE: {
+      const { text: body, markup } = promoteMessage();
+      await sendMessage(chatId, body, markup);
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+async function handleMessage(message: TelegramMessage) {
+  const chatId = message.chat.id;
+  const userId = message.from?.id;
+  const text = (message.text ?? "").trim();
+
+  void touchUser(userId, message.from?.username ?? null, message.from?.first_name ?? null);
+
+  // Pending multi-step flows (admin inputs, reports) take priority.
+  const state = await takeState(userId);
+  if (state) {
+    if (state.action === "report") {
+      if (text === "/cancel") {
+        await sendMessage(chatId, "Cancelled.");
+        return;
+      }
+      await addReport(userId, message.from?.username ?? null, text);
+      await sendMessage(chatId, "✅ Thanks — your report was sent to the admins.");
+      return;
+    }
+    if (await handleAdminState(state, message)) return;
+  }
+
+  if (await handleMenuLabel(chatId, text)) return;
+
+  const gate = await checkForcedJoin(userId);
+  if (!gate.ok && !text.startsWith("/start")) {
+    await sendMessage(chatId, gate.text!, gate.markup);
+    return;
+  }
 
   if (text.startsWith("/")) {
     const [commandToken, ...rest] = text.split(/\s+/);
     const command = (commandToken ?? "").split("@")[0]!.toLowerCase();
     const query = rest.join(" ").trim();
 
-    if (command === "/start" || command === "/help") {
-      await sendMessage(chatId, WELCOME);
-      return;
-    }
+    if (await handleCommand(message, command, query)) return;
 
     const category = COMMAND_CATEGORIES[command];
-    if (!category) {
-      // Unknown command — treat the whole thing as a keyword instead of nagging.
-      const fallback = text.replace(/^\//, "").trim();
-      if (fallback.length < 2) {
-        await sendMessage(chatId, "Send me any keyword to search Telegram.");
+    if (category) {
+      if (query.length < 2) {
+        await sendMessage(chatId, "Just send me a keyword — no command needed. Example: <code>anime</code>");
         return;
       }
-      const fallbackLimit = await checkRateLimit(userId);
-      if (!fallbackLimit.allowed) {
-        await sendMessage(chatId, rateLimitMessage(fallbackLimit.retryAfter));
-        return;
-      }
-      await sendMessage(
-        chatId,
-        await renderSearch(fallback, "chats"),
-        categoryKeyboard(fallback),
-      );
-      return;
-    }
-    if (query.length < 2) {
-      await sendMessage(chatId, "Just send me a keyword — no command needed. Example: <code>anime</code>");
+      await runSearch(chatId, userId, query, category);
       return;
     }
 
-
-    const limit = await checkRateLimit(userId);
-    if (!limit.allowed) {
-      await sendMessage(chatId, rateLimitMessage(limit.retryAfter));
+    // Unknown command — treat it as a keyword.
+    const fallback = text.replace(/^\//, "").trim();
+    if (fallback.length < 2) {
+      await sendMessage(chatId, "Send me any keyword to search Telegram.", MAIN_MENU);
       return;
     }
-
-    await sendMessage(chatId, await renderSearch(query, category), categoryKeyboard(query));
+    await runSearch(chatId, userId, fallback, "chats");
     return;
   }
 
@@ -101,21 +255,45 @@ async function handleMessage(chatId: number, userId: number | undefined, rawText
     return;
   }
 
-  const limit = await checkRateLimit(userId);
-  if (!limit.allowed) {
-    await sendMessage(chatId, rateLimitMessage(limit.retryAfter));
-    return;
-  }
-
-  await sendMessage(chatId, await renderSearch(text, "chats"), categoryKeyboard(text));
+  await runSearch(chatId, userId, text, "chats");
 }
 
 async function handleCallback(update: NonNullable<TelegramUpdate["callback_query"]>) {
   const chatId = update.message?.chat?.id;
   const messageId = update.message?.message_id;
   const data = update.data ?? "";
+  const userId = update.from?.id;
 
-  if (!chatId || !messageId || !data.startsWith("f:")) {
+  if (!chatId || !messageId) {
+    await answerCallback(update.id);
+    return;
+  }
+
+  if (data.startsWith("a:")) {
+    await handleAdminCallback(update.id, chatId, messageId, userId, data);
+    return;
+  }
+
+  if (data.startsWith("lang:")) {
+    const code = data.slice(5);
+    if (userId) await setUserLanguage(userId, code);
+    await answerCallback(update.id, "Language updated");
+    await editMessage(chatId, messageId, `🗣️ Language set to <b>${languageLabel(code)}</b>.`);
+    return;
+  }
+
+  if (data === "join:check") {
+    const gate = await checkForcedJoin(userId);
+    if (gate.ok) {
+      await answerCallback(update.id, "Thanks! You're in.");
+      await editMessage(chatId, messageId, "✅ All set — send me any keyword to search.");
+    } else {
+      await answerCallback(update.id, "Still not joined to all channels.");
+    }
+    return;
+  }
+
+  if (!data.startsWith("f:")) {
     await answerCallback(update.id);
     return;
   }
@@ -128,17 +306,19 @@ async function handleCallback(update: NonNullable<TelegramUpdate["callback_query
     return;
   }
 
-  const limit = await checkRateLimit(update.from?.id);
+  const limit = await checkRateLimit(userId);
   if (!limit.allowed) {
-    await answerCallback(
-      update.id,
-      `Too many searches. Try again in ${Math.max(1, limit.retryAfter)}s.`,
-    );
+    await answerCallback(update.id, `Too many searches. Try again in ${Math.max(1, limit.retryAfter)}s.`);
     return;
   }
 
   await answerCallback(update.id, `Searching ${category}…`);
-  await editMessage(chatId, messageId, await renderSearch(query, category), categoryKeyboard(query));
+  await editMessage(
+    chatId,
+    messageId,
+    await renderSearch(query, category, userId),
+    categoryKeyboard(query),
+  );
 }
 
 export async function handleUpdate(update: TelegramUpdate): Promise<void> {
@@ -149,11 +329,10 @@ export async function handleUpdate(update: TelegramUpdate): Promise<void> {
     }
 
     const chatId = update.message?.chat?.id;
-    const text = update.message?.text;
-    if (chatId && typeof text === "string") {
-      await handleMessage(chatId, update.message?.from?.id, text);
+    const messageId = update.message?.message_id;
+    if (chatId && messageId) {
+      await handleMessage({ ...(update.message as TelegramMessage), chat: { id: chatId }, message_id: messageId });
     }
-
   } catch (error) {
     console.error("Update handling failed:", error);
   }
