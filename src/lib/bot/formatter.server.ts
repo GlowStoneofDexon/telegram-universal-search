@@ -26,12 +26,25 @@ function formatMembers(count: number): string {
   return String(count);
 }
 
-const SPONSORED = [
+const DEFAULT_SPONSORED = [
   "──────────────",
   "<b>Sponsored</b>",
   "🔥 Play Slots · ⚽ Bet Football",
   "💰 100% crypto bonus",
 ].join("\n");
+
+export interface AdBlock {
+  title: string;
+  body: string;
+  url: string | null;
+}
+
+function sponsoredBlock(ad?: AdBlock | null): string {
+  if (!ad) return DEFAULT_SPONSORED;
+  const lines = ["──────────────", "<b>Sponsored</b>", `<b>${escapeHtml(ad.title)}</b>`, escapeHtml(ad.body)];
+  if (ad.url) lines.push(`<a href="${escapeHtml(ad.url)}">Open ▸</a>`);
+  return lines.join("\n");
+}
 
 const PAGE_SIZE = 10;
 
@@ -40,10 +53,12 @@ export function formatResults(
   query: string,
   category: string,
   cached: boolean,
+  ad?: AdBlock | null,
 ): string {
   const page = results.slice(0, PAGE_SIZE);
   const pages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
   const lines: string[] = [];
+
 
   lines.push(
     `🔍 <b>Results for “${escapeHtml(query)}”</b> · ${escapeHtml(categoryLabel(category))} · Page 1/${pages}${cached ? " · cached" : ""}`,
