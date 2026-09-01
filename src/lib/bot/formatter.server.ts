@@ -92,7 +92,7 @@ export function formatResults(
     lines.push("");
   });
 
-  lines.push(SPONSORED);
+  lines.push(sponsoredBlock(ad));
 
   return lines.join("\n").trim();
 }
