@@ -364,9 +364,9 @@ app.post("/search", async (req, res) => {
   }
 
   const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
-  const category = typeof req.body?.category === "string" ? req.body.category : "chats";
+  const category = typeof req.body?.category === "string" ? req.body.category : "all";
   const requested = Number(req.body?.limit ?? 10);
-  const limit = Math.min(Math.max(Number.isFinite(requested) ? requested : 10, 1), 20);
+  const limit = Math.min(Math.max(Number.isFinite(requested) ? requested : 10, 1), 60);
 
   if (query.length < 2) {
     return res.status(400).json({ error: "Query must be at least 2 characters" });
