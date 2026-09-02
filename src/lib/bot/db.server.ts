@@ -312,3 +312,83 @@ export async function recordBroadcast(
     failed_count: failed,
   });
 }
+
+/* --------------------------------- settings -------------------------------- */
+
+export async function getSetting(key: string): Promise<string | null> {
+  const { data } = await supabaseAdmin
+    .from("bot_settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+  return (data?.value as string | undefined) ?? null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await supabaseAdmin
+    .from("bot_settings")
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+}
+
+export const SPONSOR_KEY = "sponsor_text";
+
+export async function sponsorText(): Promise<string | null> {
+  return getSetting(SPONSOR_KEY);
+}
+
+/* ---------------------------------- posts ---------------------------------- */
+
+export interface BotPost {
+  id: string;
+  image_url: string | null;
+  body: string;
+  link: string | null;
+  likes: number;
+  is_active: boolean;
+}
+
+export async function randomPosts(limit = 1): Promise<BotPost[]> {
+  const { data, error } = await supabaseAdmin.rpc("bot_random_posts", { _limit: limit });
+  if (error) {
+    console.error("randomPosts failed:", error.message);
+    return [];
+  }
+  return (data ?? []) as BotPost[];
+}
+
+export async function listPosts(): Promise<BotPost[]> {
+  const { data } = await supabaseAdmin
+    .from("bot_posts")
+    .select("id, image_url, body, link, likes, is_active")
+    .order("created_at", { ascending: false })
+    .limit(10);
+  return (data ?? []) as BotPost[];
+}
+
+export async function addPost(
+  body: string,
+  link: string | null,
+  imageUrl: string | null,
+): Promise<void> {
+  await supabaseAdmin.from("bot_posts").insert({ body, link, image_url: imageUrl });
+}
+
+export async function deletePost(id: string): Promise<void> {
+  await supabaseAdmin.from("bot_posts").delete().eq("id", id);
+}
+
+export async function togglePostLike(
+  postId: string,
+  telegramId: number,
+): Promise<{ liked: boolean; likes: number }> {
+  const { data, error } = await supabaseAdmin.rpc("bot_toggle_post_like", {
+    _post_id: postId,
+    _telegram_id: telegramId,
+  });
+  if (error) {
+    console.error("togglePostLike failed:", error.message);
+    return { liked: false, likes: 0 };
+  }
+  const row = (data as { liked: boolean; likes: number }[] | null)?.[0];
+  return { liked: Boolean(row?.liked), likes: row?.likes ?? 0 };
+}
