@@ -155,6 +155,62 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_post_likes: {
+        Row: {
+          created_at: string
+          post_id: string
+          telegram_id: number
+        }
+        Insert: {
+          created_at?: string
+          post_id: string
+          telegram_id: number
+        }
+        Update: {
+          created_at?: string
+          post_id?: string
+          telegram_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "bot_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_posts: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          likes: number
+          link: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          likes?: number
+          link?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          likes?: number
+          link?: string | null
+        }
+        Relationships: []
+      }
       bot_rate_limits: {
         Row: {
           request_count: number
@@ -224,6 +280,24 @@ export type Database = {
           id?: number
           query?: string
           telegram_id?: number | null
+        }
+        Relationships: []
+      }
+      bot_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
         }
         Relationships: []
       }
@@ -307,6 +381,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bot_random_posts: {
+        Args: { _limit?: number }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          likes: number
+          link: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "bot_posts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      bot_toggle_post_like: {
+        Args: { _post_id: string; _telegram_id: number }
+        Returns: {
+          liked: boolean
+          likes: number
+        }[]
+      }
       bot_top_searches: {
         Args: { _days?: number; _limit?: number }
         Returns: {
