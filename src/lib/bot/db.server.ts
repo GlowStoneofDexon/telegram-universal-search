@@ -392,3 +392,12 @@ export async function togglePostLike(
   const row = (data as { liked: boolean; likes: number }[] | null)?.[0];
   return { liked: Boolean(row?.liked), likes: row?.likes ?? 0 };
 }
+
+export async function getPost(id: string): Promise<BotPost | null> {
+  const { data } = await supabaseAdmin
+    .from("bot_posts")
+    .select("id, image_url, body, link, likes, is_active")
+    .eq("id", id)
+    .maybeSingle();
+  return (data as BotPost | null) ?? null;
+}

@@ -1,4 +1,4 @@
-import { randomPosts, togglePostLike, type BotPost } from "./db.server";
+import { getPost, randomPosts, togglePostLike, type BotPost } from "./db.server";
 import { answerCallback, editMarkup, sendMessage, sendPhoto } from "./telegram.server";
 
 function esc(value: string): string {
@@ -74,13 +74,8 @@ export async function handlePostCallback(
     }
     const { liked, likes } = await togglePostLike(id, userId);
     await answerCallback(callbackId, liked ? "Liked ❤️" : "Like removed");
-    const [post] = await randomPosts(0).catch(() => []);
-    void post;
-    await editMarkup(
-      chatId,
-      messageId,
-      postKeyboard({ id, image_url: null, body: "", link: null, likes, is_active: true }, liked),
-    );
+    const post = await getPost(id);
+    if (post) await editMarkup(chatId, messageId, postKeyboard({ ...post, likes }, liked));
     return;
   }
 
