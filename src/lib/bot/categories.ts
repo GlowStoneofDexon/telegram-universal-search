@@ -1,10 +1,13 @@
 export const CATEGORIES = [
-  { id: "chats", label: "Chats", emoji: "💬" },
+  { id: "all", label: "All", emoji: "🌐" },
   { id: "channels", label: "Channels", emoji: "📢" },
   { id: "groups", label: "Groups", emoji: "👥" },
-  { id: "files", label: "Files", emoji: "📄" },
+  { id: "bots", label: "Bots", emoji: "🤖" },
+  { id: "chats", label: "Chats", emoji: "💬" },
+  { id: "photos", label: "Photos", emoji: "🖼" },
   { id: "videos", label: "Videos", emoji: "🎬" },
   { id: "audios", label: "Audios", emoji: "🎵" },
+  { id: "files", label: "Files", emoji: "📄" },
   { id: "links", label: "Links", emoji: "🔗" },
 ] as const;
 
@@ -18,4 +21,8 @@ export function isCategory(value: string): value is CategoryId {
 
 export function categoryLabel(id: string): string {
   return CATEGORIES.find((c) => c.id === id)?.label ?? id;
+}
+
+export function categoryEmoji(id: string): string {
+  return CATEGORIES.find((c) => c.id === id)?.emoji ?? "📌";
 }
