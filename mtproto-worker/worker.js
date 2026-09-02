@@ -123,11 +123,15 @@ ensureConnected().catch(() => {});
 const messageFilters = {
   chats: () => new Api.InputMessagesFilterEmpty(),
   text: () => new Api.InputMessagesFilterEmpty(),
+  photos: () => new Api.InputMessagesFilterPhotos(),
   files: () => new Api.InputMessagesFilterDocument(),
   videos: () => new Api.InputMessagesFilterVideo(),
   audios: () => new Api.InputMessagesFilterMusic(),
   links: () => new Api.InputMessagesFilterUrl(),
 };
+
+const ENTITY_CATEGORIES = new Set(["channels", "groups", "bots"]);
+const MEDIA_CATEGORIES = new Set(["photos", "files", "videos", "audios", "links"]);
 
 function toNumber(value) {
   if (value === undefined || value === null) return null;
@@ -153,14 +157,44 @@ function detectType(message) {
   return "message";
 }
 
-async function searchEntities(query, category, limit) {
+function dedupe(items, limit) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const key = item.messageId
+      ? `${item.username ?? item.title}:${item.messageId}`
+      : `u:${item.username ?? item.title}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function shuffle(items) {
+  for (let i = items.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+// A single keyword and its individual words both matter: "anime movie" should
+// return the phrase matches AND the broader "anime" / "movie" matches mixed in.
+function queryVariants(query) {
+  const words = query.split(/\s+/).filter((w) => w.length >= 3);
+  const variants = [query];
+  if (words.length > 1) variants.push(...words.slice(0, 3));
+  return [...new Set(variants)];
+}
+
+async function rawEntitySearch(query) {
   const result = await withTimeout(
-    client.invoke(new Api.contacts.Search({ q: query, limit: Math.max(limit, 20) })),
+    client.invoke(new Api.contacts.Search({ q: query, limit: 50 })),
     30000,
     "Telegram entity search",
   );
-
-  const seen = new Set();
   const items = [];
 
   for (const chat of result.chats ?? []) {
@@ -169,14 +203,7 @@ async function searchEntities(query, category, limit) {
     else if (chat.className === "Chat") isBroadcast = false;
     else continue;
 
-    if (category === "channels" && !isBroadcast) continue;
-    if (category === "groups" && isBroadcast) continue;
-
     const username = chat.username ?? chat.usernames?.[0]?.username ?? null;
-    const key = username ?? `id:${chat.id?.toString?.() ?? Math.random()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
     items.push({
       type: isBroadcast ? "channel" : "group",
       title: chat.title ?? "Untitled",
@@ -189,14 +216,38 @@ async function searchEntities(query, category, limit) {
     });
   }
 
-  items.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
-  return items.slice(0, limit);
+  for (const user of result.users ?? []) {
+    if (!user.bot) continue;
+    const username = user.username ?? user.usernames?.[0]?.username ?? null;
+    if (!username) continue;
+    items.push({
+      type: "bot",
+      title: [user.firstName, user.lastName].filter(Boolean).join(" ") || username,
+      username,
+      snippet: "",
+      link: `t.me/${username}`,
+      date: null,
+      members: 0,
+      messageId: null,
+    });
+  }
+
+  return items;
 }
 
+async function searchEntities(query, category, limit) {
+  const batches = await Promise.all(queryVariants(query).map((q) => rawEntitySearch(q).catch(() => [])));
+  let items = batches.flat();
 
-async function searchMessages(query, category, limit) {
-  const makeFilter = messageFilters[category] ?? messageFilters.chats;
+  if (category === "channels") items = items.filter((i) => i.type === "channel");
+  else if (category === "groups") items = items.filter((i) => i.type === "group");
+  else if (category === "bots") items = items.filter((i) => i.type === "bot");
 
+  items.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
+  return dedupe(items, limit);
+}
+
+async function rawMessageSearch(query, makeFilter, limit) {
   const result = await withTimeout(
     client.invoke(
       new Api.messages.SearchGlobal({
@@ -220,38 +271,77 @@ async function searchMessages(query, category, limit) {
 
   const results = [];
   for (const message of result.messages ?? []) {
-    const peerId =
-      toNumber(message.peerId?.channelId) ??
-      toNumber(message.peerId?.chatId) ??
-      toNumber(message.peerId?.userId);
-    const peer = peers.get(peerId);
-    const username = peer?.username ?? null;
-    const title =
-      peer?.title ??
-      [peer?.firstName, peer?.lastName].filter(Boolean).join(" ") ??
-      "Unknown";
+    // Private one-to-one chats (including this account's own conversations)
+    // must never leak into public search output.
+    if (!message.peerId?.channelId && !message.peerId?.chatId) continue;
 
+    const peerId = toNumber(message.peerId?.channelId) ?? toNumber(message.peerId?.chatId);
+    const peer = peers.get(peerId);
+    if (!peer || (peer.className !== "Channel" && peer.className !== "Chat")) continue;
+
+    const username = peer.username ?? peer.usernames?.[0]?.username ?? null;
     results.push({
       type: detectType(message),
-      title: title || "Unknown",
+      title: peer.title || "Unknown",
       username,
       snippet: message.message ?? "",
       link: username ? `t.me/${username}/${message.id}` : null,
       date: message.date ? new Date(message.date * 1000).toISOString() : null,
-      members: peer?.participantsCount ?? 0,
+      members: peer.participantsCount ?? 0,
       messageId: message.id ?? null,
     });
   }
   return results;
 }
 
+function linkOf(result) {
+  const match = (result.snippet ?? "").match(/https?:\/\/[^\s]+|t\.me\/[^\s]+/i);
+  return match ? match[0] : null;
+}
+
+async function searchMessages(query, category, limit) {
+  const makeFilter = messageFilters[category] ?? messageFilters.chats;
+  const variants = queryVariants(query);
+  const batches = await Promise.all(
+    variants.map((q) => rawMessageSearch(q, makeFilter, Math.max(limit, 30)).catch(() => [])),
+  );
+  let results = batches.flat();
+
+  if (category === "links") {
+    // Only keep posts that really carry a link, and expose it as the target.
+    results = results
+      .map((r) => ({ ...r, externalLink: linkOf(r) }))
+      .filter((r) => r.type === "link" || r.externalLink)
+      .map((r) => ({ ...r, type: "link", link: r.link ?? r.externalLink }));
+  }
+
+  return dedupe(results, limit);
+}
+
+async function searchMixed(query, limit) {
+  const [entities, messages, photos, videos] = await Promise.all([
+    searchEntities(query, "chats", limit).catch(() => []),
+    searchMessages(query, "chats", limit).catch(() => []),
+    searchMessages(query, "photos", Math.ceil(limit / 3)).catch(() => []),
+    searchMessages(query, "videos", Math.ceil(limit / 3)).catch(() => []),
+  ]);
+  const head = entities.slice(0, Math.ceil(limit / 2));
+  const tail = shuffle([...messages, ...photos, ...videos]);
+  return dedupe([...head, ...tail], limit);
+}
+
 async function searchTelegram(query, category, limit) {
   await ensureConnected();
-  // "chats" = every public channel/group matching the keyword (directory style).
-  if (category === "chats" || category === "channels" || category === "groups") {
-    return searchEntities(query, category, limit);
-  }
-  return searchMessages(query, category, limit);
+  if (category === "all") return searchMixed(query, limit);
+  if (ENTITY_CATEGORIES.has(category)) return searchEntities(query, category, limit);
+  if (MEDIA_CATEGORIES.has(category)) return searchMessages(query, category, limit);
+  // "chats" = public channels/groups matching the keyword (directory style)
+  // blended with the matching public posts.
+  const [entities, messages] = await Promise.all([
+    searchEntities(query, "chats", limit).catch(() => []),
+    searchMessages(query, "chats", limit).catch(() => []),
+  ]);
+  return dedupe([...entities, ...messages], limit);
 }
 
 
@@ -274,9 +364,9 @@ app.post("/search", async (req, res) => {
   }
 
   const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
-  const category = typeof req.body?.category === "string" ? req.body.category : "chats";
+  const category = typeof req.body?.category === "string" ? req.body.category : "all";
   const requested = Number(req.body?.limit ?? 10);
-  const limit = Math.min(Math.max(Number.isFinite(requested) ? requested : 10, 1), 20);
+  const limit = Math.min(Math.max(Number.isFinite(requested) ? requested : 10, 1), 60);
 
   if (query.length < 2) {
     return res.status(400).json({ error: "Query must be at least 2 characters" });

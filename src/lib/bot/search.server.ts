@@ -2,7 +2,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { SearchOutcome, SearchResult } from "./types";
 
 const CACHE_DAYS = 7;
-const CACHE_LIMIT = 20;
+const CACHE_LIMIT = 50;
+const WORKER_LIMIT = 50;
 
 interface CacheRow {
   channel_name: string | null;
@@ -108,7 +109,7 @@ async function callWorker(query: string, category: string): Promise<SearchResult
         "Content-Type": "application/json",
         Authorization: `Bearer ${workerSecret}`,
       },
-      body: JSON.stringify({ query, category, limit: 10 }),
+      body: JSON.stringify({ query, category, limit: WORKER_LIMIT }),
       signal: controller.signal,
     });
   } catch (error) {
