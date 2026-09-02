@@ -5,6 +5,7 @@ const TYPE_EMOJI: Record<string, string> = {
   message: "💬",
   channel: "📢",
   group: "👥",
+  bot: "🤖",
   file: "📄",
   video: "🎬",
   audio: "🎵",
@@ -39,39 +40,52 @@ export interface AdBlock {
   url: string | null;
 }
 
-function sponsoredBlock(ad?: AdBlock | null): string {
+/**
+ * Sponsor text set by an admin wins (it is raw HTML so hidden links work),
+ * then the ad rotation, then the built-in default.
+ */
+function sponsoredBlock(ad?: AdBlock | null, sponsorText?: string | null): string {
+  if (sponsorText && sponsorText.trim()) {
+    return ["──────────────", sponsorText.trim()].join("\n");
+  }
   if (!ad) return DEFAULT_SPONSORED;
   const lines = ["──────────────", "<b>Sponsored</b>", `<b>${escapeHtml(ad.title)}</b>`, escapeHtml(ad.body)];
   if (ad.url) lines.push(`<a href="${escapeHtml(ad.url)}">Open ▸</a>`);
   return lines.join("\n");
 }
 
-const PAGE_SIZE = 10;
+export const PAGE_SIZE = 10;
+
+export interface RenderOptions {
+  page?: number;
+  ad?: AdBlock | null;
+  sponsorText?: string | null;
+}
 
 export function formatResults(
   results: SearchResult[],
   query: string,
   category: string,
   cached: boolean,
-  ad?: AdBlock | null,
+  options: RenderOptions = {},
 ): string {
-  const page = results.slice(0, PAGE_SIZE);
+  const page = Math.max(0, options.page ?? 0);
   const pages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+  const slice = results.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
   const lines: string[] = [];
 
-
   lines.push(
-    `🔍 <b>Results for “${escapeHtml(query)}”</b> · ${escapeHtml(categoryLabel(category))} · Page 1/${pages}${cached ? " · cached" : ""}`,
+    `🔍 <b>Results for “${escapeHtml(query)}”</b> · ${escapeHtml(categoryLabel(category))} · Page ${page + 1}/${pages}${cached ? " · cached" : ""}`,
   );
   lines.push("");
 
-  page.forEach((result, index) => {
+  slice.forEach((result, index) => {
     const emoji = TYPE_EMOJI[result.type] ?? "📌";
     const title = escapeHtml(result.title);
     const heading = result.username
       ? `<a href="https://t.me/${escapeHtml(result.username)}">${title}</a>`
       : title;
-    lines.push(`<b>${index + 1}.</b> ${emoji} <b>${heading}</b>`);
+    lines.push(`<b>${page * PAGE_SIZE + index + 1}.</b> ${emoji} <b>${heading}</b>`);
 
     const meta: string[] = [];
     if (result.members > 0) meta.push(`👥 ${formatMembers(result.members)} members`);
@@ -86,13 +100,13 @@ export function formatResults(
 
     if (result.username && result.messageId) {
       lines.push(
-        `   <a href="https://t.me/${escapeHtml(result.username)}/${result.messageId}">Open message</a>`,
+        `   <a href="https://t.me/${escapeHtml(result.username)}/${result.messageId}">Open ▸</a>`,
       );
     }
     lines.push("");
   });
 
-  lines.push(sponsoredBlock(ad));
+  lines.push(sponsoredBlock(options.ad, options.sponsorText));
 
   return lines.join("\n").trim();
 }
@@ -117,26 +131,47 @@ export function formatError(query: string, reason: string): string {
   ].join("\n");
 }
 
-export function categoryKeyboard(query: string) {
-  // Callback data is capped at 64 bytes by Telegram, so the query is trimmed.
-  const safeQuery = query.slice(0, 40);
-  const buttons = CATEGORIES.map((c) => ({
-    text: `${c.emoji} ${c.label}`,
-    callback_data: `f:${c.id}:${safeQuery}`,
-  }));
+interface Button {
+  text: string;
+  callback_data: string;
+}
 
-  return {
-    inline_keyboard: [buttons.slice(0, 3), buttons.slice(3, 6), buttons.slice(6)],
-  };
+/**
+ * Icon filter row(s) + pagination row.
+ * Active category is hidden and replaced by an "All" reset button.
+ * Page 0 shows a single Next arrow; deeper pages expand to First/Prev/Next.
+ */
+export function categoryKeyboard(query: string, category = "all", page = 0, totalPages = 1) {
+  const safeQuery = query.slice(0, 30);
+  const cb = (cat: string, pageIndex: number) => `f:${cat}:${pageIndex}:${safeQuery}`;
+
+  const buttons: Button[] = [];
+  if (category !== "all") buttons.push({ text: "🌐 All", callback_data: cb("all", 0) });
+  for (const c of CATEGORIES) {
+    if (c.id === category || c.id === "all") continue;
+    buttons.push({ text: c.emoji, callback_data: cb(c.id, 0) });
+  }
+
+  const rows: Button[][] = [];
+  for (let i = 0; i < buttons.length; i += 5) rows.push(buttons.slice(i, i + 5));
+
+  const nav: Button[] = [];
+  if (page > 0) {
+    nav.push({ text: "⏮", callback_data: cb(category, 0) });
+    nav.push({ text: "◀️", callback_data: cb(category, page - 1) });
+  }
+  if (page + 1 < totalPages) nav.push({ text: "➡️ Next", callback_data: cb(category, page + 1) });
+  if (nav.length) rows.push(nav);
+
+  return { inline_keyboard: rows };
 }
 
 export const WELCOME = [
   "🔍 <b>Comb Search Bot</b>",
   "",
-  "Search public Telegram content in real time — channels, groups, chats, files, videos, audios and links.",
+  "Search public Telegram content in real time — channels, groups, bots, chats, files, photos, videos, audios and links.",
   "",
   "<b>Just send me a keyword.</b> No commands needed — type <code>anime</code>, <code>crypto</code>, anything.",
   "",
-  "Then tap a category button under the results to switch between Channels, Groups, Files, Videos, Audios and Links.",
+  "Then tap a category icon under the results to filter, and the arrow to page through more matches.",
 ].join("\n");
-
