@@ -119,3 +119,33 @@ export async function copyMessage(
   });
   return res !== null;
 }
+
+/** Sends a photo with caption; falls back to a plain message when it fails. */
+export async function sendPhoto(
+  chatId: number,
+  photo: string,
+  caption: string,
+  replyMarkup?: unknown,
+): Promise<boolean> {
+  const res = await callTelegramSafe("sendPhoto", {
+    chat_id: chatId,
+    photo,
+    caption,
+    parse_mode: "HTML",
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+  });
+  return res !== null;
+}
+
+/** Swaps only the inline keyboard of an existing message. */
+export async function editMarkup(
+  chatId: number,
+  messageId: number,
+  replyMarkup: unknown,
+): Promise<void> {
+  await callTelegramSafe("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: replyMarkup,
+  });
+}
