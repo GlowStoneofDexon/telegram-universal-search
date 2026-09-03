@@ -244,6 +244,36 @@ export async function handleAdminCallback(
     case "pdel":
       await deletePost(arg);
       return show(await postsSection());
+    case "ptog":
+      await togglePostActive(arg);
+      return show(await postsSection());
+    case "pedit": {
+      const post = await getPost(arg);
+      if (!post) {
+        await answerCallback(callbackId, "Post not found.");
+        return show(await postsSection());
+      }
+      await setState(userId!, "post_edit", { id: arg });
+      await answerCallback(callbackId);
+      await sendMessage(
+        chatId,
+        [
+          "✏️ Send the updated post as up to 3 lines:",
+          "<code>Post text\nhttps://full-post-link (optional)\nhttps://image-url (optional)</code>",
+          "",
+          "<b>Current:</b>",
+          `<code>${esc(post.body)}</code>`,
+          post.link ? `<code>${esc(post.link)}</code>` : "",
+          post.image_url ? `<code>${esc(post.image_url)}</code>` : "",
+          "",
+          "/cancel to abort.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      return;
+    }
+
     case "spset":
       await setState(userId!, "sponsor_set");
       await answerCallback(callbackId);
