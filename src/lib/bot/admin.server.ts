@@ -187,13 +187,16 @@ async function postsSection() {
     const preview = p.body.replace(/\s+/g, " ").slice(0, 60);
     lines.push(`<b>${i + 1}.</b> ${p.is_active ? "🟢" : "⚪️"} ❤️ ${p.likes} — ${esc(preview)}`);
   });
-  const buttons = posts.map((p, i) => ({ text: `🗑 ${i + 1}`, callback_data: `a:pdel:${p.id}` }));
-  const rows: unknown[][] = [];
-  for (let i = 0; i < buttons.length; i += 5) rows.push(buttons.slice(i, i + 5));
+  const rows = posts.map((p, i) => [
+    { text: `✏️ ${i + 1}`, callback_data: `a:pedit:${p.id}` },
+    { text: p.is_active ? `⏸ ${i + 1}` : `▶️ ${i + 1}`, callback_data: `a:ptog:${p.id}` },
+    { text: `🗑 ${i + 1}`, callback_data: `a:pdel:${p.id}` },
+  ]);
   return {
     text: lines.join("\n"),
     markup: { inline_keyboard: [[{ text: "➕ Add post", callback_data: "a:padd" }], ...rows, backRow] },
   };
+
 }
 
 /* -------------------------------- callbacks ------------------------------- */
