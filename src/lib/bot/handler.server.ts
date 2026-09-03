@@ -7,6 +7,7 @@ import {
 } from "./admin.server";
 import { isCategory } from "./categories";
 import {
+  PAGE_SIZE,
   WELCOME,
   categoryKeyboard,
   formatError,
@@ -24,6 +25,7 @@ import {
   touchUser,
   addReport,
   setState,
+  sponsorText,
 } from "./db.server";
 import {
   ABOUT_TEXT,
@@ -39,6 +41,7 @@ import {
   languageLabel,
   promoteMessage,
 } from "./menu.server";
+import { handlePostCallback, sendRandomPost } from "./posts.server";
 import { checkRateLimit, rateLimitMessage } from "./rate-limit.server";
 import { search } from "./search.server";
 import { answerCallback, editMessage, sendMessage } from "./telegram.server";
@@ -90,22 +93,43 @@ async function currentAd(): Promise<AdBlock | null> {
   return ad ? { title: ad.title, body: ad.body, url: ad.url } : null;
 }
 
-async function renderSearch(query: string, category: string, userId?: number) {
-  const [outcome, ad] = await Promise.all([search(query, category), currentAd()]);
-  void logSearch(userId, query, category);
-  if (outcome.error) return formatError(query, outcome.error);
-  return outcome.results.length > 0
-    ? formatResults(outcome.results, query, category, outcome.cached, ad)
-    : formatNoResults(query, category);
+async function renderSearch(query: string, category: string, page: number, userId?: number) {
+  const [outcome, ad, sponsor] = await Promise.all([search(query, category), currentAd(), sponsorText()]);
+  if (page === 0) void logSearch(userId, query, category);
+
+  if (outcome.error) {
+    return { text: formatError(query, outcome.error), markup: categoryKeyboard(query, category) };
+  }
+  if (outcome.results.length === 0) {
+    return { text: formatNoResults(query, category), markup: categoryKeyboard(query, category) };
+  }
+
+  const totalPages = Math.max(1, Math.ceil(outcome.results.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  return {
+    text: formatResults(outcome.results, query, category, outcome.cached, {
+      page: safePage,
+      ad,
+      sponsorText: sponsor,
+    }),
+    markup: categoryKeyboard(query, category, safePage, totalPages),
+  };
 }
 
-async function runSearch(chatId: number, userId: number | undefined, query: string, category: string) {
+async function runSearch(
+  chatId: number,
+  userId: number | undefined,
+  query: string,
+  category: string,
+  page = 0,
+) {
   const limit = await checkRateLimit(userId);
   if (!limit.allowed) {
     await sendMessage(chatId, rateLimitMessage(limit.retryAfter));
     return;
   }
-  await sendMessage(chatId, await renderSearch(query, category, userId), categoryKeyboard(query));
+  const { text, markup } = await renderSearch(query, category, page, userId);
+  await sendMessage(chatId, text, markup);
 }
 
 async function sendStart(chatId: number) {
@@ -153,7 +177,7 @@ async function handleCommand(message: TelegramMessage, command: string, query: s
     case "/rand": {
       const seed = RANDOM_SEEDS[Math.floor(Math.random() * RANDOM_SEEDS.length)]!;
       await sendMessage(chatId, "🎲 Picking 10 random bots…");
-      await runSearch(chatId, userId, seed, "chats");
+      await runSearch(chatId, userId, seed, "bots");
       return true;
     }
     case "/admin": {
@@ -164,6 +188,9 @@ async function handleCommand(message: TelegramMessage, command: string, query: s
       await sendMessage(chatId, ADMIN_PANEL, adminKeyboard());
       return true;
     }
+    case "/posts":
+      await sendRandomPost(chatId);
+      return true;
     case "/cancel":
       await sendMessage(chatId, "Nothing to cancel.");
       return true;
@@ -246,7 +273,7 @@ async function handleMessage(message: TelegramMessage) {
       await sendMessage(chatId, "Send me any keyword to search Telegram.", MAIN_MENU);
       return;
     }
-    await runSearch(chatId, userId, fallback, "chats");
+    await runSearch(chatId, userId, fallback, "all");
     return;
   }
 
@@ -255,7 +282,7 @@ async function handleMessage(message: TelegramMessage) {
     return;
   }
 
-  await runSearch(chatId, userId, text, "chats");
+  await runSearch(chatId, userId, text, "all");
 }
 
 async function handleCallback(update: NonNullable<TelegramUpdate["callback_query"]>) {
@@ -266,6 +293,11 @@ async function handleCallback(update: NonNullable<TelegramUpdate["callback_query
 
   if (!chatId || !messageId) {
     await answerCallback(update.id);
+    return;
+  }
+
+  if (data.startsWith("po:")) {
+    await handlePostCallback(update.id, chatId, messageId, userId, data);
     return;
   }
 
@@ -298,8 +330,9 @@ async function handleCallback(update: NonNullable<TelegramUpdate["callback_query
     return;
   }
 
-  const [, category = "", ...queryParts] = data.split(":");
+  const [, category = "", pageToken = "0", ...queryParts] = data.split(":");
   const query = queryParts.join(":").trim();
+  const page = Number.parseInt(pageToken, 10) || 0;
 
   if (!isCategory(category) || query.length < 2) {
     await answerCallback(update.id, "That search expired. Send the keyword again.");
@@ -312,13 +345,9 @@ async function handleCallback(update: NonNullable<TelegramUpdate["callback_query
     return;
   }
 
-  await answerCallback(update.id, `Searching ${category}…`);
-  await editMessage(
-    chatId,
-    messageId,
-    await renderSearch(query, category, userId),
-    categoryKeyboard(query),
-  );
+  await answerCallback(update.id, "Loading…");
+  const { text, markup } = await renderSearch(query, category, page, userId);
+  await editMessage(chatId, messageId, text, markup);
 }
 
 export async function handleUpdate(update: TelegramUpdate): Promise<void> {
