@@ -401,3 +401,20 @@ export async function getPost(id: string): Promise<BotPost | null> {
     .maybeSingle();
   return (data as BotPost | null) ?? null;
 }
+
+export async function updatePost(
+  id: string,
+  body: string,
+  link: string | null,
+  imageUrl: string | null,
+): Promise<void> {
+  await supabaseAdmin.from("bot_posts").update({ body, link, image_url: imageUrl }).eq("id", id);
+}
+
+export async function togglePostActive(id: string): Promise<boolean> {
+  const post = await getPost(id);
+  if (!post) return false;
+  const next = !post.is_active;
+  await supabaseAdmin.from("bot_posts").update({ is_active: next }).eq("id", id);
+  return next;
+}

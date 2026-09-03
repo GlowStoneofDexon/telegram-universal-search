@@ -19,7 +19,11 @@ import {
   topSearches,
   addPost,
   deletePost,
+  getPost,
   listPosts,
+  updatePost,
+  togglePostActive,
+
   setSetting,
   sponsorText,
   SPONSOR_KEY,
@@ -183,13 +187,16 @@ async function postsSection() {
     const preview = p.body.replace(/\s+/g, " ").slice(0, 60);
     lines.push(`<b>${i + 1}.</b> ${p.is_active ? "🟢" : "⚪️"} ❤️ ${p.likes} — ${esc(preview)}`);
   });
-  const buttons = posts.map((p, i) => ({ text: `🗑 ${i + 1}`, callback_data: `a:pdel:${p.id}` }));
-  const rows: unknown[][] = [];
-  for (let i = 0; i < buttons.length; i += 5) rows.push(buttons.slice(i, i + 5));
+  const rows = posts.map((p, i) => [
+    { text: `✏️ ${i + 1}`, callback_data: `a:pedit:${p.id}` },
+    { text: p.is_active ? `⏸ ${i + 1}` : `▶️ ${i + 1}`, callback_data: `a:ptog:${p.id}` },
+    { text: `🗑 ${i + 1}`, callback_data: `a:pdel:${p.id}` },
+  ]);
   return {
     text: lines.join("\n"),
     markup: { inline_keyboard: [[{ text: "➕ Add post", callback_data: "a:padd" }], ...rows, backRow] },
   };
+
 }
 
 /* -------------------------------- callbacks ------------------------------- */
@@ -237,6 +244,36 @@ export async function handleAdminCallback(
     case "pdel":
       await deletePost(arg);
       return show(await postsSection());
+    case "ptog":
+      await togglePostActive(arg);
+      return show(await postsSection());
+    case "pedit": {
+      const post = await getPost(arg);
+      if (!post) {
+        await answerCallback(callbackId, "Post not found.");
+        return show(await postsSection());
+      }
+      await setState(userId!, "post_edit", { id: arg });
+      await answerCallback(callbackId);
+      await sendMessage(
+        chatId,
+        [
+          "✏️ Send the updated post as up to 3 lines:",
+          "<code>Post text\nhttps://full-post-link (optional)\nhttps://image-url (optional)</code>",
+          "",
+          "<b>Current:</b>",
+          `<code>${esc(post.body)}</code>`,
+          post.link ? `<code>${esc(post.link)}</code>` : "",
+          post.image_url ? `<code>${esc(post.image_url)}</code>` : "",
+          "",
+          "/cancel to abort.",
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
+      return;
+    }
+
     case "spset":
       await setState(userId!, "sponsor_set");
       await answerCallback(callbackId);
@@ -373,6 +410,24 @@ export async function handleAdminState(
     await sendMessage(chatId, "✅ Post saved.", adminKeyboard());
     return true;
   }
+
+  if (state.action === "post_edit") {
+    const id = String(state.payload["id"] ?? "");
+    const [body, link, image] = text.split("\n").map((l) => l.trim());
+    if (!id) {
+      await sendMessage(chatId, "Lost track of that post. Open 🗂 Posts again.", adminKeyboard());
+      return true;
+    }
+    if (!body || body.length < 3) {
+      await sendMessage(chatId, "Need at least a body line. Try again or /cancel.");
+      if (userId) await setState(userId, "post_edit", { id });
+      return true;
+    }
+    await updatePost(id, body, link || null, image || null);
+    await sendMessage(chatId, "✅ Post updated.", adminKeyboard());
+    return true;
+  }
+
 
   if (state.action === "broadcast") {
     await sendMessage(chatId, "📢 Broadcasting…");
