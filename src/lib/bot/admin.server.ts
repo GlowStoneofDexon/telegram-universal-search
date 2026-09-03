@@ -411,6 +411,24 @@ export async function handleAdminState(
     return true;
   }
 
+  if (state.action === "post_edit") {
+    const id = String(state.payload["id"] ?? "");
+    const [body, link, image] = text.split("\n").map((l) => l.trim());
+    if (!id) {
+      await sendMessage(chatId, "Lost track of that post. Open 🗂 Posts again.", adminKeyboard());
+      return true;
+    }
+    if (!body || body.length < 3) {
+      await sendMessage(chatId, "Need at least a body line. Try again or /cancel.");
+      if (userId) await setState(userId, "post_edit", { id });
+      return true;
+    }
+    await updatePost(id, body, link || null, image || null);
+    await sendMessage(chatId, "✅ Post updated.", adminKeyboard());
+    return true;
+  }
+
+
   if (state.action === "broadcast") {
     await sendMessage(chatId, "📢 Broadcasting…");
     const ids = await activeUserIds();
