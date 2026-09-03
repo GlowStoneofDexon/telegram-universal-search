@@ -47,10 +47,13 @@ import { search } from "./search.server";
 import { answerCallback, editMessage, sendMessage } from "./telegram.server";
 
 const COMMAND_CATEGORIES: Record<string, string> = {
-  "/search": "chats",
+  "/search": "all",
+  "/all": "all",
   "/chats": "chats",
   "/channels": "channels",
   "/groups": "groups",
+  "/bots": "bots",
+  "/photos": "photos",
   "/files": "files",
   "/videos": "videos",
   "/audios": "audios",
