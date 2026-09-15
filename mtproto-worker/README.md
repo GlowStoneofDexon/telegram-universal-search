@@ -1,88 +1,105 @@
-# Comb Search Bot — MTProto worker
+# Comb Search Bot — search engine (runs free on your Android tablet)
 
-Small Node service that holds a Telegram MTProto (GramJS) user session and
-executes global searches. The Lovable app calls it over HTTPS.
+This folder is the part of the bot that talks to Telegram. It used to run on
+Railway. It now runs on your own device under Termux, for free.
 
-## 1. Get a session string (once, on your own machine)
+It **pulls** work from the bot instead of being called, so your tablet needs
+no public address, no tunnel, no port forwarding and no credit card. Mobile
+data or home Wi-Fi is enough.
 
-```bash
-cd mtproto-worker
+```
+user -> Comb Search Bot -> job queue -> your tablet -> results back
+```
+
+## One-time setup on the tablet
+
+Install Termux from F-Droid (not the Play Store version), then:
+
+```sh
+pkg update && pkg upgrade
+pkg install nodejs-lts git
+git clone <your repo url>
+cd <repo>/mtproto-worker
 npm install
+```
+
+Node 22 or newer is required (the local link store uses Node's built-in SQLite).
+Check with `node -v`.
+
+## Settings
+
+Create a `.env` file in this folder:
+
+```
+TELEGRAM_API_ID=your api id
+TELEGRAM_API_HASH=your api hash
+TELEGRAM_SESSION=generated below
+MTPROTO_WORKER_SECRET=same value as in your Lovable secrets
+BOT_BASE_URL=https://combsearchbot.lovable.app
+```
+
+Generate the session once (asks for phone number + code):
+
+```sh
 npm run login
 ```
 
-Enter your `api_id` / `api_hash` from https://my.telegram.org/apps, your phone
-number, the login code, and 2FA password if you have one. Copy the printed
-session string.
+Paste the printed string into `TELEGRAM_SESSION`.
 
-## 2. Deploy
+## Run it
 
-Push this folder to Railway / Render / Fly / any Node host and set:
-
-| Variable | Value |
-| --- | --- |
-| `TELEGRAM_API_ID` | from my.telegram.org |
-| `TELEGRAM_API_HASH` | from my.telegram.org |
-| `TELEGRAM_SESSION` | the string from step 1 |
-| `MTPROTO_WORKER_SECRET` | the same value stored in the Lovable app |
-| `PORT` | provided by the host (defaults to 8080) |
-
-Start command: `npm start`.
-
-## 3. Verify
-
-```bash
-curl https://<your-worker-url>/health
+```sh
+npm start
 ```
 
-Then give the worker's base URL back to the Lovable app as `MTPROTO_WORKER_URL`.
+Leave the window open. To stop Android from killing it:
 
-## API
-
-`POST /search` — requires `Authorization: Bearer <MTPROTO_WORKER_SECRET>`
-
-```json
-{ "query": "anime", "category": "chats", "limit": 10 }
+```sh
+pkg install termux-services
+termux-wake-lock
 ```
 
-Categories: `chats`, `channels`, `groups`, `files`, `videos`, `audios`, `links`.
+Restart automatically after a crash:
 
-Response:
-
-```json
-{ "results": [{ "type": "channel", "title": "...", "username": "...", "snippet": "...", "link": "t.me/...", "members": 1234 }] }
+```sh
+while true; do npm start; sleep 5; done
 ```
 
-Nothing is stored by the worker; every request is a pass-through.
+## Local link storage
 
-## Troubleshooting Railway
+Every link the engine finds is stored in `files.db` next to the worker, and
+saved links are blended into future searches. Size is limited only by the free
+space on the tablet.
 
-**Deploy succeeds, then crashes with `code: 'ENOENT'`** — Railway is building the
-repository root instead of this folder, so `worker.js` does not exist where it
-starts. Fix it in the service settings:
+Table: `files(file_name, file_id UNIQUE, file_size, caption, link, username, kind)`
+with an index on `file_name`.
 
-1. Settings → Source → **Root Directory** = `mtproto-worker`
-2. Settings → Deploy → **Start Command** = `node worker.js` (or leave blank; `railway.json` sets it)
-3. Redeploy.
+## Backup / moving to another device
 
-**Variables the worker needs on Railway** (and only these):
-`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_SESSION`, `MTPROTO_WORKER_SECRET`.
-Do **not** set `MTPROTO_WORKER_URL` or `TELEGRAM_BOT_TOKEN` on Railway — those
-belong in the Lovable app. `PORT` is injected by Railway automatically.
-
-`MTPROTO_WORKER_SECRET` must be byte-identical on Railway and in the Lovable app,
-otherwise every search returns 401.
-
-**Health says `connected: false` and every search hangs / times out** — the
-`TELEGRAM_SESSION` string is not valid for the `TELEGRAM_API_ID` /
-`TELEGRAM_API_HASH` currently configured (Telegram accepts the TCP connection
-but never answers the first request). Regenerate it:
-
-```bash
-cd mtproto-worker
-npm install
-npm run login   # use the SAME api_id / api_hash that Railway has
+```sh
+npm run backup
 ```
 
-Paste the new string into Railway's `TELEGRAM_SESSION` variable and redeploy.
-`/health` should then report `connected: true` (and `lastConnectError: null`).
+This writes a timestamped copy into `mtproto-worker/backups/`. Copy that one
+file anywhere you like; to restore, rename it back to `files.db` in this folder.
+
+## Importing an old dump
+
+If you have a JSON export of links (array or one JSON object per line):
+
+```sh
+npm run migrate -- dump.json
+```
+
+Recognised keys: `file_name`, `file_id`, `file_size`, `caption`, `link`.
+
+## Scope
+
+The bot answers anime-related searches: anime, manga, manhwa, donghua, anime
+movies and similar. The word list lives in `anime-filter.js` — add more terms
+there whenever you want to widen it.
+
+## Railway
+
+Nothing here depends on Railway any more. Once the tablet is answering
+searches, you can delete the Railway service.
