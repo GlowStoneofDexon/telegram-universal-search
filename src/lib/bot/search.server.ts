@@ -164,6 +164,7 @@ export async function search(query: string, category: string): Promise<SearchOut
 }
 
 export async function cleanupCache(): Promise<number> {
+  await supabaseAdmin.rpc("cleanup_search_jobs");
   const { data, error } = await supabaseAdmin.rpc("delete_expired_cache");
   if (error) {
     console.error("Cache cleanup error:", error.message);
