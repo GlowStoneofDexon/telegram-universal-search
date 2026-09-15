@@ -1,12 +1,13 @@
 // Comb Search Bot - MTProto worker
-// Deploy this folder on its own (Railway / Render / Fly / VPS).
-// It holds the long-lived Telegram MTProto (GramJS) connection that the
-// serverless bot backend cannot hold itself.
+// Runs on an Android tablet under Termux (or any machine with Node 22+).
+// It holds the long-lived Telegram MTProto (GramJS) connection and pulls
+// search jobs from the bot backend, so the device needs no public address.
 
-import express from "express";
 import dotenv from "dotenv";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
+import { scopedQuery, filterResults } from "./anime-filter.js";
+import { searchFiles, saveResults, fileCount } from "./files-db.js";
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ const {
   TELEGRAM_API_HASH,
   TELEGRAM_SESSION,
   MTPROTO_WORKER_SECRET,
-  PORT = 8080,
+  BOT_BASE_URL,
 } = process.env;
 
 const missing = [
@@ -23,6 +24,7 @@ const missing = [
   ["TELEGRAM_API_HASH", TELEGRAM_API_HASH],
   ["TELEGRAM_SESSION", TELEGRAM_SESSION],
   ["MTPROTO_WORKER_SECRET", MTPROTO_WORKER_SECRET],
+  ["BOT_BASE_URL", BOT_BASE_URL],
 ]
   .filter(([, value]) => !value)
   .map(([name]) => name);
