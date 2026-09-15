@@ -376,6 +376,45 @@ export type Database = {
         }
         Relationships: []
       }
+      search_jobs: {
+        Row: {
+          category: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          limit_count: number
+          query: string
+          results: Json | null
+          status: string
+        }
+        Insert: {
+          category?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          limit_count?: number
+          query: string
+          results?: Json | null
+          status?: string
+        }
+        Update: {
+          category?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          limit_count?: number
+          query?: string
+          results?: Json | null
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -424,6 +463,28 @@ export type Database = {
           retry_after: number
         }[]
       }
+      claim_search_job: {
+        Args: never
+        Returns: {
+          category: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          error: string | null
+          id: string
+          limit_count: number
+          query: string
+          results: Json | null
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "search_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      cleanup_search_jobs: { Args: never; Returns: number }
       delete_expired_cache: { Args: never; Returns: number }
       get_cache_stats: {
         Args: never
