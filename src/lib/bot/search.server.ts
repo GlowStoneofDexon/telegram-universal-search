@@ -91,43 +91,54 @@ async function writeCache(
   if (error) console.error("Cache write error:", error.message);
 }
 
+const JOB_TIMEOUT_MS = 25_000;
+const JOB_POLL_MS = 700;
+
+/**
+ * The search engine runs on the owner's Android tablet (Termux) and only makes
+ * outgoing requests, so searches are handed over through a job queue instead of
+ * calling the device directly.
+ */
 async function callWorker(query: string, category: string): Promise<SearchResult[]> {
-  const workerUrl = process.env["MTPROTO_WORKER_URL"];
-  const workerSecret = process.env["MTPROTO_WORKER_SECRET"];
+  const { data: job, error } = await supabaseAdmin
+    .from("search_jobs")
+    .insert({ query, category, limit_count: WORKER_LIMIT })
+    .select("id")
+    .single();
 
-  if (!workerUrl) throw new Error("Search engine is not configured yet (MTPROTO_WORKER_URL).");
-  if (!workerSecret) throw new Error("Search engine credentials are missing.");
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
-
-  let response: Response;
-  try {
-    response = await fetch(`${workerUrl.replace(/\/$/, "")}/search`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${workerSecret}`,
-      },
-      body: JSON.stringify({ query, category, limit: WORKER_LIMIT }),
-      signal: controller.signal,
-    });
-  } catch (error) {
-    console.error("Worker search request failed:", error);
-    throw new Error("The search engine took too long to answer. Try again in a moment.");
-  } finally {
-    clearTimeout(timer);
-  }
-
-  if (!response.ok) {
-    const body = await response.text();
-    console.error(`Worker search failed [${response.status}]: ${body}`);
-    if (response.status === 429) throw new Error("Telegram rate limit reached. Try again shortly.");
+  if (error || !job) {
+    console.error("Failed to queue search job:", error?.message);
     throw new Error("The search engine is temporarily unavailable.");
   }
 
-  const data = (await response.json()) as { results?: SearchResult[] };
-  return data.results ?? [];
+  const deadline = Date.now() + JOB_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_MS));
+
+    const { data: row } = await supabaseAdmin
+      .from("search_jobs")
+      .select("status, results, error")
+      .eq("id", job.id)
+      .maybeSingle();
+
+    if (!row) continue;
+    if (row.status === "done") return (row.results ?? []) as unknown as SearchResult[];
+    if (row.status === "failed") {
+      const message = String(row.error ?? "");
+      if (/FLOOD_WAIT/i.test(message)) {
+        throw new Error("Telegram rate limit reached. Try again shortly.");
+      }
+      throw new Error("The search engine is temporarily unavailable.");
+    }
+  }
+
+  await supabaseAdmin
+    .from("search_jobs")
+    .update({ status: "expired" })
+    .eq("id", job.id)
+    .eq("status", "pending");
+
+  throw new Error("The search engine is offline right now. Please try again in a moment.");
 }
 
 export async function search(query: string, category: string): Promise<SearchOutcome> {
@@ -153,6 +164,7 @@ export async function search(query: string, category: string): Promise<SearchOut
 }
 
 export async function cleanupCache(): Promise<number> {
+  await supabaseAdmin.rpc("cleanup_search_jobs");
   const { data, error } = await supabaseAdmin.rpc("delete_expired_cache");
   if (error) {
     console.error("Cache cleanup error:", error.message);

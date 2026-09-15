@@ -1,12 +1,13 @@
 // Comb Search Bot - MTProto worker
-// Deploy this folder on its own (Railway / Render / Fly / VPS).
-// It holds the long-lived Telegram MTProto (GramJS) connection that the
-// serverless bot backend cannot hold itself.
+// Runs on an Android tablet under Termux (or any machine with Node 22+).
+// It holds the long-lived Telegram MTProto (GramJS) connection and pulls
+// search jobs from the bot backend, so the device needs no public address.
 
-import express from "express";
 import dotenv from "dotenv";
 import { TelegramClient, Api } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
+import { scopedQuery, filterResults } from "./anime-filter.js";
+import { searchFiles, saveResults, fileCount } from "./files-db.js";
 
 dotenv.config();
 
@@ -15,7 +16,7 @@ const {
   TELEGRAM_API_HASH,
   TELEGRAM_SESSION,
   MTPROTO_WORKER_SECRET,
-  PORT = 8080,
+  BOT_BASE_URL,
 } = process.env;
 
 const missing = [
@@ -23,6 +24,7 @@ const missing = [
   ["TELEGRAM_API_HASH", TELEGRAM_API_HASH],
   ["TELEGRAM_SESSION", TELEGRAM_SESSION],
   ["MTPROTO_WORKER_SECRET", MTPROTO_WORKER_SECRET],
+  ["BOT_BASE_URL", BOT_BASE_URL],
 ]
   .filter(([, value]) => !value)
   .map(([name]) => name);
@@ -330,65 +332,106 @@ async function searchMixed(query, limit) {
   return dedupe([...head, ...tail], limit);
 }
 
-async function searchTelegram(query, category, limit) {
+async function searchTelegram(rawQuery, category, limit) {
   await ensureConnected();
-  if (category === "all") return searchMixed(query, limit);
-  if (ENTITY_CATEGORIES.has(category)) return searchEntities(query, category, limit);
-  if (MEDIA_CATEGORIES.has(category)) return searchMessages(query, category, limit);
-  // "chats" = public channels/groups matching the keyword (directory style)
-  // blended with the matching public posts.
-  const [entities, messages] = await Promise.all([
-    searchEntities(query, "chats", limit).catch(() => []),
-    searchMessages(query, "chats", limit).catch(() => []),
-  ]);
-  return dedupe([...entities, ...messages], limit);
+  // Keep everything inside the bot's scope (anime & friends).
+  const query = scopedQuery(rawQuery);
+
+  let results;
+  if (category === "all") results = await searchMixed(query, limit);
+  else if (ENTITY_CATEGORIES.has(category)) results = await searchEntities(query, category, limit);
+  else if (MEDIA_CATEGORIES.has(category)) results = await searchMessages(query, category, limit);
+  else {
+    // "chats" = public channels/groups matching the keyword (directory style)
+    // blended with the matching public posts.
+    const [entities, messages] = await Promise.all([
+      searchEntities(query, "chats", limit).catch(() => []),
+      searchMessages(query, "chats", limit).catch(() => []),
+    ]);
+    results = dedupe([...entities, ...messages], limit);
+  }
+
+  results = filterResults(results, rawQuery);
+
+  // Remember every link we found, then blend in what we already stored locally.
+  try {
+    saveResults(results);
+  } catch (error) {
+    console.error("Local store write failed:", error?.message ?? error);
+  }
+
+  if (results.length < limit) {
+    try {
+      const local = filterResults(searchFiles(rawQuery, limit - results.length), rawQuery);
+      results = dedupe([...results, ...local], limit);
+    } catch (error) {
+      console.error("Local store read failed:", error?.message ?? error);
+    }
+  }
+
+  return results;
 }
 
+/* ------------------------- job queue (pull model) ------------------------- */
 
-const app = express();
-app.use(express.json({ limit: "64kb" }));
+const BASE = BOT_BASE_URL.replace(/\/$/, "");
+const IDLE_DELAY_MS = 1000;
+const ERROR_DELAY_MS = 5000;
 
-app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    connected,
-    lastConnectError,
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
+async function api(path, body) {
+  const response = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${MTPROTO_WORKER_SECRET}`,
+    },
+    body: JSON.stringify(body ?? {}),
   });
-});
+  if (!response.ok) throw new Error(`${path} -> ${response.status} ${await response.text()}`);
+  return response.json();
+}
 
-app.post("/search", async (req, res) => {
-  if (req.headers.authorization !== `Bearer ${MTPROTO_WORKER_SECRET}`) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
-  const category = typeof req.body?.category === "string" ? req.body.category : "all";
-  const requested = Number(req.body?.limit ?? 10);
-  const limit = Math.min(Math.max(Number.isFinite(requested) ? requested : 10, 1), 60);
+async function runJob(job) {
+  const query = String(job.query ?? "").trim();
+  const category = job.category ?? "all";
+  const limit = Math.min(Math.max(Number(job.limit) || 10, 1), 60);
 
   if (query.length < 2) {
-    return res.status(400).json({ error: "Query must be at least 2 characters" });
+    await api("/api/public/worker/complete", { id: job.id, error: "Query too short" });
+    return;
   }
 
+  const started = Date.now();
   try {
     const results = await searchTelegram(query, category, limit);
-    res.json({
-      results,
-      query,
-      category,
-      count: results.length,
-      timestamp: new Date().toISOString(),
-    });
+    await api("/api/public/worker/complete", { id: job.id, results });
+    console.log(`[${category}] "${query}" -> ${results.length} results in ${Date.now() - started}ms`);
   } catch (error) {
     const message = error?.errorMessage ?? error?.message ?? "Unknown error";
     console.error(`Search failed [${category}] "${query}":`, message);
-    const flood = /FLOOD_WAIT/i.test(String(message));
-    res.status(flood ? 429 : 500).json({ error: message });
+    await api("/api/public/worker/complete", { id: job.id, error: message }).catch(() => {});
   }
-});
+}
 
-app.listen(PORT, () => {
-  console.log(`MTProto worker listening on port ${PORT}`);
-});
+async function loop() {
+  console.log(`Worker started. Local store holds ${fileCount()} saved links.`);
+  console.log(`Polling ${BASE} for searches. Keep this window open.`);
+
+  for (;;) {
+    try {
+      const { job } = await api("/api/public/worker/claim");
+      if (!job) {
+        await sleep(IDLE_DELAY_MS);
+        continue;
+      }
+      await runJob(job);
+    } catch (error) {
+      console.error("Queue poll failed:", error?.message ?? error);
+      await sleep(ERROR_DELAY_MS);
+    }
+  }
+}
+
+loop();
