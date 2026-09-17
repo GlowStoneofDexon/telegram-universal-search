@@ -461,6 +461,7 @@ export interface JoinGate {
 
 export async function checkForcedJoin(userId: number | undefined): Promise<JoinGate> {
   if (!userId) return { ok: true };
+  if (await isAdmin(userId)) return { ok: true };
   const channels = await forcedChannels();
   if (channels.length === 0) return { ok: true };
 
