@@ -91,7 +91,7 @@ async function writeCache(
   if (error) console.error("Cache write error:", error.message);
 }
 
-const JOB_TIMEOUT_MS = 25_000;
+const JOB_TIMEOUT_MS = 55_000;
 const JOB_POLL_MS = 700;
 
 /**
