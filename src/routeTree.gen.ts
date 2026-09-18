@@ -20,6 +20,7 @@ import { Route as ApiPublicTelegramCleanupRouteImport } from './routes/api/publi
 import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 import { Route as ApiPublicWorkerClaimRouteImport } from './routes/api/public/worker/claim'
 import { Route as ApiPublicWorkerCompleteRouteImport } from './routes/api/public/worker/complete'
+import { Route as ApiPublicWorkerSeedRouteImport } from './routes/api/public/worker/seed'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -79,6 +80,11 @@ const ApiPublicWorkerCompleteRoute = ApiPublicWorkerCompleteRouteImport.update({
   path: '/api/public/worker/complete',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWorkerSeedRoute = ApiPublicWorkerSeedRouteImport.update({
+  id: '/api/public/worker/seed',
+  path: '/api/public/worker/seed',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/worker/claim': typeof ApiPublicWorkerClaimRoute
   '/api/public/worker/complete': typeof ApiPublicWorkerCompleteRoute
+  '/api/public/worker/seed': typeof ApiPublicWorkerSeedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/worker/claim': typeof ApiPublicWorkerClaimRoute
   '/api/public/worker/complete': typeof ApiPublicWorkerCompleteRoute
+  '/api/public/worker/seed': typeof ApiPublicWorkerSeedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
   '/api/public/worker/claim': typeof ApiPublicWorkerClaimRoute
   '/api/public/worker/complete': typeof ApiPublicWorkerCompleteRoute
+  '/api/public/worker/seed': typeof ApiPublicWorkerSeedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/api/public/telegram/webhook'
     | '/api/public/worker/claim'
     | '/api/public/worker/complete'
+    | '/api/public/worker/seed'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/api/public/telegram/webhook'
     | '/api/public/worker/claim'
     | '/api/public/worker/complete'
+    | '/api/public/worker/seed'
   id:
     | '__root__'
     | '/'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/api/public/telegram/webhook'
     | '/api/public/worker/claim'
     | '/api/public/worker/complete'
+    | '/api/public/worker/seed'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -174,6 +186,7 @@ export interface RootRouteChildren {
   ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
   ApiPublicWorkerClaimRoute: typeof ApiPublicWorkerClaimRoute
   ApiPublicWorkerCompleteRoute: typeof ApiPublicWorkerCompleteRoute
+  ApiPublicWorkerSeedRoute: typeof ApiPublicWorkerSeedRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -255,6 +268,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWorkerCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/worker/seed': {
+      id: '/api/public/worker/seed'
+      path: '/api/public/worker/seed'
+      fullPath: '/api/public/worker/seed'
+      preLoaderRoute: typeof ApiPublicWorkerSeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -270,6 +290,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
   ApiPublicWorkerClaimRoute: ApiPublicWorkerClaimRoute,
   ApiPublicWorkerCompleteRoute: ApiPublicWorkerCompleteRoute,
+  ApiPublicWorkerSeedRoute: ApiPublicWorkerSeedRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
