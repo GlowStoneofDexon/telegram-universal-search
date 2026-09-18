@@ -141,21 +141,30 @@ async function callWorker(query: string, category: string): Promise<SearchResult
   throw new Error("The search engine is offline right now. Please try again in a moment.");
 }
 
+/** Channels an admin has permanently banned from results. */
+const BLOCKED_USERNAMES = new Set(["ipweb", "diskwalaofficial", "txspan_info"]);
+
+function removeBlocked(results: SearchResult[]): SearchResult[] {
+  return results.filter(
+    (result) => !BLOCKED_USERNAMES.has((result.username ?? "").replace(/^@/, "").toLowerCase()),
+  );
+}
+
 export async function search(query: string, category: string): Promise<SearchOutcome> {
-  const fresh = await readCache(query, category, true);
+  const fresh = removeBlocked(await readCache(query, category, true));
   if (fresh.length > 0) {
     return { results: fresh, cached: true };
   }
 
   try {
-    const results = await callWorker(query, category);
+    const results = removeBlocked(await callWorker(query, category));
     if (results.length > 0) {
       await writeCache(query, category, results);
     }
     return { results, cached: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    const stale = await readCache(query, category, false);
+    const stale = removeBlocked(await readCache(query, category, false));
     if (stale.length > 0) {
       return { results: stale, cached: true };
     }
