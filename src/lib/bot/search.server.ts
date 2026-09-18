@@ -157,14 +157,14 @@ export async function search(query: string, category: string): Promise<SearchOut
   }
 
   try {
-    const results = await callWorker(query, category);
+    const results = removeBlocked(await callWorker(query, category));
     if (results.length > 0) {
       await writeCache(query, category, results);
     }
     return { results, cached: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    const stale = await readCache(query, category, false);
+    const stale = removeBlocked(await readCache(query, category, false));
     if (stale.length > 0) {
       return { results: stale, cached: true };
     }
