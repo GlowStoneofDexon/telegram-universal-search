@@ -16,24 +16,25 @@ export const MAIN_MENU = {
   resize_keyboard: true,
   one_time_keyboard: true,
   is_persistent: false,
-  input_field_placeholder: "Send a keyword to search Telegram…",
+  input_field_placeholder: "Send an anime or manga title…",
 };
 
 export const HELP_TEXT = [
-  "❓ <b>How to use Comb Search Bot</b>",
+  "❓ <b>How to use Search Otaku Bot</b>",
   "",
-  "1️⃣ Just send any keyword — no command needed. Example: <code>anime</code>",
-  "2️⃣ Tap a category button under the results to switch between Chats, Channels, Groups, Files, Videos, Audios and Links.",
+  "1️⃣ Just send an anime or manga title — no command needed. Example: <code>Naruto</code>",
+  "2️⃣ Tap a category button under the results to switch between Anime Channels, Anime Groups, Episodes, Manga / Files, Fan Art / Scans, OSTs / AMVs and Links.",
   "3️⃣ Tap a result title to open it directly in Telegram.",
   "",
   "<b>Commands</b>",
-  "🚀 /start — start the bot",
-  "🎲 /rand — get 10 random bots",
+  "🚀 /start — start searching anime",
+  "🎲 /rand — get 10 random anime finds",
+  "📝 /posts — see popular anime posts",
   "⚠️ /report — report a problem or ask for help",
   "ℹ️ /about — about this bot",
-  "🔐 /admin — admin panel (restricted)",
+  "🔑 /admin — admin panel (restricted)",
   "",
-  "Searches are limited to a few per minute to keep the bot fast for everyone.",
+  "Results are limited to anime, manga, manhwa and donghua content. Searches are limited to a few per minute to keep the bot fast for everyone.",
 ].join("\n");
 
 export const PRIVACY_TEXT = [
@@ -47,12 +48,12 @@ export const PRIVACY_TEXT = [
 ].join("\n");
 
 export const ABOUT_TEXT = [
-  "ℹ️ <b>About Comb Search Bot</b>",
+  "ℹ️ <b>About Search Otaku Bot</b>",
   "",
-  "Comb Search Bot is a free universal search engine for public Telegram content — channels, groups, chats, files, videos, audios and links.",
+  "This bot searches Telegram for anime, manga, manhwa and donghua — channels, episodes, scans, OSTs and fan communities, all in one place.",
   "",
   "• 100% free, no subscription",
-  "• Real-time public search",
+  "• Real-time public search, anime-only results",
   "• No personal search history stored",
   "",
   "Website: https://combsearchbot.lovable.app",

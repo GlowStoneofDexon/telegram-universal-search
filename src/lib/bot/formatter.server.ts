@@ -117,6 +117,8 @@ export function formatNoResults(query: string, category: string): string {
     "",
     "No public matches found.",
     "",
+    "ℹ️ This bot only searches <b>anime, manga, manhwa and donghua</b> content — try another title or check the spelling.",
+    "",
     "Tap another category below, or try a shorter keyword.",
   ].join("\n");
 }
@@ -167,11 +169,34 @@ export function categoryKeyboard(query: string, category = "all", page = 0, tota
 }
 
 export const WELCOME = [
-  "🔍 <b>Comb Search Bot</b>",
+  "🍥 <b>Search Otaku Bot</b>",
   "",
-  "Search public Telegram content in real time — channels, groups, bots, chats, files, photos, videos, audios and links.",
+  "Search Telegram for <b>anime, manga, manhwa and donghua</b> — channels, groups, episodes, scans, OSTs and fan communities.",
   "",
-  "<b>Just send me a keyword.</b> No commands needed — type <code>anime</code>, <code>crypto</code>, anything.",
+  "<b>Just send a title.</b> No commands needed — try <code>One Piece</code>, <code>Jujutsu Kaisen</code>, <code>Solo Leveling</code>.",
   "",
-  "Then tap a category icon under the results to filter, and the arrow to page through more matches.",
+  "Then tap a category icon under the results to filter, and the arrow to page through more finds.",
 ].join("\n");
+
+/** Compact list used by /rand (saved anime finds, no query header). */
+export function formatRandom(results: SearchResult[]): string {
+  const lines = ["🎲 <b>10 random anime finds</b>", ""];
+
+  results.forEach((result, index) => {
+    const emoji = TYPE_EMOJI[result.type] ?? "📌";
+    const title = escapeHtml(result.title);
+    const heading = result.username
+      ? `<a href="https://t.me/${escapeHtml(result.username)}">${title}</a>`
+      : title;
+    lines.push(`<b>${index + 1}.</b> ${emoji} <b>${heading}</b>`);
+
+    const meta: string[] = [];
+    if (result.members > 0) meta.push(`👥 ${formatMembers(result.members)} members`);
+    if (result.username) meta.push(`@${escapeHtml(result.username)}`);
+    if (meta.length) lines.push(`   ${meta.join(" · ")}`);
+    lines.push("");
+  });
+
+  lines.push("Send any anime or manga title to search for more.");
+  return lines.join("\n").trim();
+}

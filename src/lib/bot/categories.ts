@@ -1,13 +1,13 @@
 export const CATEGORIES = [
-  { id: "all", label: "All", emoji: "🌐" },
-  { id: "channels", label: "Channels", emoji: "📢" },
-  { id: "groups", label: "Groups", emoji: "👥" },
+  { id: "all", label: "All", emoji: "🔍" },
+  { id: "channels", label: "Anime Channels", emoji: "📢" },
+  { id: "groups", label: "Anime Groups", emoji: "👥" },
   { id: "bots", label: "Bots", emoji: "🤖" },
   { id: "chats", label: "Chats", emoji: "💬" },
-  { id: "photos", label: "Photos", emoji: "🖼" },
-  { id: "videos", label: "Videos", emoji: "🎬" },
-  { id: "audios", label: "Audios", emoji: "🎵" },
-  { id: "files", label: "Files", emoji: "📄" },
+  { id: "photos", label: "Fan Art / Scans", emoji: "🖼" },
+  { id: "videos", label: "Episodes", emoji: "🎬" },
+  { id: "audios", label: "OSTs / AMVs", emoji: "🎵" },
+  { id: "files", label: "Manga / Files", emoji: "📄" },
   { id: "links", label: "Links", emoji: "🔗" },
 ] as const;
 
